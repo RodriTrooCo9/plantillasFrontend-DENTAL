@@ -1,0 +1,6 @@
+{
+  "name": "Lumina Odontología — Consultorio Dental y Portal de Servicios",
+  "description": "Plataforma integral para consultorio dental con catálogo interactivo de servicios odontológicos, presupuestador clínico, agenda de citas y acceso para pacientes y especialistas.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
