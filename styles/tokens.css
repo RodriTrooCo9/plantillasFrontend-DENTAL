@@ -1,0 +1,33 @@
+:root {
+  /* Paleta Clínica Desacoplada (Design Tokens) */
+  --color-bg-canvas: #FAF9F6;
+  --color-bg-surface: #FFFFFF;
+  --color-bg-subtle: #F3F1EC;
+  --color-border-base: #E5E0D8;
+  --color-border-strong: #CBD5E1;
+
+  --color-primary: #115E59;
+  --color-primary-hover: #0F766E;
+  --color-primary-soft: #F0FDFA;
+  --color-primary-border: #99F6E4;
+
+  --color-secondary: #0F172A;
+  --color-text-main: #0F172A;
+  --color-text-muted: #475569;
+  --color-text-subtle: #64748B;
+
+  /* Estados Semánticos y Clínicos del Odontograma */
+  --color-tooth-sano: #FFFFFF;
+  --color-tooth-caries: #DC2626;
+  --color-tooth-obturado: #2563EB;
+  --color-tooth-endodoncia: #7C3AED;
+  --color-tooth-corona: #D97706;
+  --color-tooth-ausente: #94A3B8;
+  --color-tooth-implante: #0D9488;
+
+  /* Radios y Espaciado */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+}
