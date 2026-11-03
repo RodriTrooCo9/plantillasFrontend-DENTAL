@@ -1,3 +1,42 @@
 @import "tailwindcss";
 @import "../styles/tokens.css";
 
+html {
+  scroll-padding-top: 6rem;
+}
+body {
+  overflow-wrap: anywhere;
+}
+button,
+input,
+select,
+textarea,
+a {
+  touch-action: manipulation;
+}
+button,
+input,
+select,
+textarea {
+  min-height: 24px;
+}
+:focus-visible {
+  outline: 3px solid #0f766e;
+  outline-offset: 3px;
+  scroll-margin-block: 6rem;
+}
+button:disabled {
+  cursor: not-allowed;
+}
+dialog::backdrop {
+  background: rgb(15 23 42 / 55%);
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,92 +1,130 @@
-import {
+import type {
   Paciente,
   Cita,
   Odontograma,
   Tratamiento,
   EntradaHistorialClinico,
-} from '@/domain';
-
-/**
- * MAPPERS Y DTOs (Adaptador anticorrupción entre NestJS y el Dominio del Frontend)
- * Si NestJS cambia nombres de campos o se divide en microservicios, solo se actualiza este archivo.
- */
-
-export interface PacienteDto {
-  id: string;
-  medical_record_code: string;
-  full_name: string;
-  email: string;
-  phone: string;
-  birth_date: string;
-  age: number;
-  blood_type: string;
-  allergies: string[];
-  medical_alerts: string;
-  assigned_dentist_id: string;
-  assigned_dentist_name: string;
+  RespuestaChat,
+  UsuarioAutenticado,
+} from "@/domain";
+import type {
+  AuthDto,
+  UserDto,
+  PacienteDto,
+  CitaDto,
+  OdontogramaDto,
+  TratamientoDto,
+  HistorialDto,
+  ChatDto,
+} from "./schemas";
+export type { PacienteDto, CitaDto } from "./schemas";
+export function mapUserDtoToDomain(dto: UserDto): UsuarioAutenticado {
+  return {
+    id: dto.id,
+    email: dto.email,
+    nombreCompleto: dto.nombre_completo,
+    rol: dto.rol,
+    pacienteId: dto.paciente_id ?? undefined,
+    dentistaId: dto.dentista_id ?? undefined,
+  };
 }
-
+export function mapAuthDtoToDomain(dto: AuthDto): UsuarioAutenticado {
+  return mapUserDtoToDomain(dto.user);
+}
 export function mapPacienteDtoToDomain(dto: PacienteDto): Paciente {
   return {
     id: dto.id,
-    codigoExpediente: dto.medical_record_code,
-    nombreCompleto: dto.full_name,
+    codigoExpediente: dto.codigo_expediente,
+    nombreCompleto: dto.nombre_completo,
     email: dto.email,
-    telefono: dto.phone,
-    fechaNacimiento: dto.birth_date,
-    edad: dto.age,
-    tipoSangre: dto.blood_type,
-    alergias: dto.allergies || [],
-    alertasMedicas: dto.medical_alerts || '',
-    dentistaAsignadoId: dto.assigned_dentist_id,
-    dentistaAsignadoNombre: dto.assigned_dentist_name,
+    telefono: dto.telefono,
+    fechaNacimiento: dto.fecha_nacimiento,
+    edad: dto.edad,
+    tipoSangre: dto.grupo_sanguineo,
+    alergias: dto.alergias,
+    alertasMedicas: [...dto.condiciones_medicas, ...dto.alertas_clinicas].join(
+      "\n",
+    ),
+    dentistaAsignadoId: dto.odontologo_cabecera_id,
+    dentistaAsignadoNombre: dto.odontologo_cabecera_nombre,
   };
 }
-
-export interface CitaDto {
-  id: string;
-  patient_id: string;
-  patient_name: string;
-  dentist_id: string;
-  dentist_name: string;
-  service_id: string;
-  service_name: string;
-  treatment_id?: string;
-  date: string;
-  time: string;
-  status: Cita['estado'];
-  reason: string;
-  cost_mxn: number;
-}
-
 export function mapCitaDtoToDomain(dto: CitaDto): Cita {
   return {
     id: dto.id,
-    pacienteId: dto.patient_id,
-    pacienteNombre: dto.patient_name,
-    dentistaId: dto.dentist_id,
-    dentistaNombre: dto.dentist_name,
-    servicioId: dto.service_id,
-    servicioNombre: dto.service_name,
-    tratamientoId: dto.treatment_id,
-    fecha: dto.date,
-    hora: dto.time,
-    estado: dto.status,
-    motivoConsulta: dto.reason,
-    costoMXN: dto.cost_mxn,
+    pacienteId: dto.pacienteId,
+    pacienteNombre: dto.pacienteNombre,
+    dentistaId: dto.dentistaId,
+    dentistaNombre: dto.dentistaNombre,
+    servicioId: dto.servicioId,
+    servicioNombre: dto.servicioNombre,
+    tratamientoId: dto.tratamientoId ?? undefined,
+    fecha: dto.fecha,
+    hora: dto.horaInicio,
+    estado: dto.estado,
+    motivoConsulta: dto.motivo,
+    costoMXN: dto.costoMXN,
+    estadoNotificacion: dto.estadoNotificacion,
   };
 }
-
-export function mapOdontogramaDtoToDomain(dto: Odontograma): Odontograma {
-  return dto;
+export function mapOdontogramaDtoToDomain(dto: OdontogramaDto): Odontograma {
+  return {
+    pacienteId: dto.pacienteId,
+    actualizadoEn: dto.actualizadoEn,
+    dientes: dto.dientes,
+    historialCambios: dto.historial_cambios,
+  };
 }
-
-export function mapTratamientoDtoToDomain(dto: Tratamiento): Tratamiento {
-  return dto;
+export function mapTratamientoDtoToDomain(dto: TratamientoDto): Tratamiento {
+  const { costoTotal, dientesInvolucrados, ...rest } = dto;
+  return {
+    ...rest,
+    costoTotalMXN: costoTotal,
+    dientesFDI: dientesInvolucrados,
+  };
 }
-
 export function mapHistorialDtoToDomain(
-  dto: EntradaHistorialClinico
+  dto: HistorialDto,
 ): EntradaHistorialClinico {
-  return dto;
+  const { notasEvolucion, ...rest } = dto;
+  return { ...rest, notasClinicas: notasEvolucion };
+}
+export function mapChatDtoToDomain(dto: ChatDto): RespuestaChat {
+  const a = dto.accion_ejecutada;
+  return {
+    texto: dto.mensaje,
+    componentes: dto.tarjetas.map((t) => {
+      switch (t.tipo) {
+        case "TARJETA_CITAS":
+          return { tipo: t.tipo, datos: t.datos.map(mapCitaDtoToDomain) };
+        case "MINI_ODONTOGRAMA":
+          return {
+            tipo: t.tipo,
+            datos: mapOdontogramaDtoToDomain(t.datos).dientes,
+          };
+        case "RESUMEN_TRATAMIENTOS":
+          return {
+            tipo: t.tipo,
+            datos: t.datos.map(mapTratamientoDtoToDomain),
+          };
+        case "TABLA_SERVICIOS":
+          return { tipo: t.tipo, datos: t.datos };
+      }
+    }),
+    acciones:
+      a.tipo === "NINGUNA"
+        ? []
+        : [
+            {
+              id: a.payload_confirmacion?.id ?? a.tipo,
+              tipo: a.tipo,
+              etiqueta: a.descripcion,
+              requiereConfirmacion: a.requiere_confirmacion,
+              confirmada: !a.requiere_confirmacion,
+              payload: a.payload_confirmacion
+                ? { confirmarAccion: a.payload_confirmacion }
+                : {},
+            },
+          ],
+  };
 }

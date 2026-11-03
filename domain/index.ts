@@ -4,7 +4,7 @@
  * Toda la aplicación opera exclusivamente sobre estas entidades de dominio.
  */
 
-export type RolUsuario = 'PACIENTE' | 'DENTISTA';
+export type RolUsuario = "PACIENTE" | "DENTISTA";
 
 export interface UsuarioAutenticado {
   id: string;
@@ -13,8 +13,6 @@ export interface UsuarioAutenticado {
   rol: RolUsuario;
   pacienteId?: string;
   dentistaId?: string;
-  accessToken: string;
-  refreshToken: string;
 }
 
 export interface ServicioClinico {
@@ -22,12 +20,12 @@ export interface ServicioClinico {
   codigo: string;
   nombre: string;
   categoria:
-    | 'Prevención'
-    | 'Ortodoncia'
-    | 'Estética'
-    | 'Endodoncia'
-    | 'Implantología'
-    | 'Odontopediatría';
+    | "Prevención"
+    | "Ortodoncia"
+    | "Estética"
+    | "Endodoncia"
+    | "Implantología"
+    | "Odontopediatría";
   descripcionCorta: string;
   protocoloClinico: string;
   beneficioMedible: string;
@@ -58,11 +56,7 @@ export interface Dentista {
 }
 
 export type EstadoCita =
-  | 'CONFIRMADA'
-  | 'EN_SALA'
-  | 'COMPLETADA'
-  | 'CANCELADA'
-  | 'REPROGRAMADA';
+  "CONFIRMADA" | "EN_SALA" | "COMPLETADA" | "CANCELADA" | "REPROGRAMADA";
 
 export interface Cita {
   id: string;
@@ -78,10 +72,10 @@ export interface Cita {
   estado: EstadoCita;
   motivoConsulta: string;
   costoMXN: number;
-  notificacionEnviada?: boolean;
+  estadoNotificacion?: "solicitada" | "pendiente" | "enviada";
 }
 
-export type EstadoTratamiento = 'PLANIFICADO' | 'EN_CURSO' | 'FINALIZADO';
+export type EstadoTratamiento = "PLANIFICADO" | "EN_CURSO" | "FINALIZADO";
 
 export interface Tratamiento {
   id: string;
@@ -107,27 +101,23 @@ export interface EntradaHistorialClinico {
   fecha: string;
   dentistaId: string;
   dentistaNombre: string;
-  tipo: 'CONSULTA' | 'DIAGNOSTICO' | 'PROCEDIMIENTO' | 'CONTROL_PERIODONTAL';
+  tipo: "CONSULTA" | "DIAGNOSTICO" | "PROCEDIMIENTO" | "CONTROL_PERIODONTAL";
   diagnostico: string;
   procedimientoRealizado: string;
   notasClinicas: string;
 }
 
 export type EstadoDiente =
-  | 'SANO'
-  | 'CARIES'
-  | 'OBTURADO'
-  | 'ENDODONCIA'
-  | 'CORONA'
-  | 'AUSENTE'
-  | 'IMPLANTE';
+  | "SANO"
+  | "CARIES"
+  | "OBTURADO"
+  | "ENDODONCIA"
+  | "CORONA"
+  | "AUSENTE"
+  | "IMPLANTE";
 
 export type SuperficieDental =
-  | 'oclusal'
-  | 'vestibular'
-  | 'lingual'
-  | 'mesial'
-  | 'distal';
+  "oclusal" | "vestibular" | "lingual" | "mesial" | "distal";
 
 export interface Diente {
   numeroFDI: number; // 11-18, 21-28, 31-38, 41-48 (32 dientes)
@@ -143,7 +133,7 @@ export interface CambioOdontograma {
   id: string;
   pacienteId: string;
   numeroFDI: number;
-  superficie?: SuperficieDental | 'GENERAL';
+  superficie?: SuperficieDental | "GENERAL";
   estadoAnterior: EstadoDiente;
   estadoNuevo: EstadoDiente;
   procedimiento: string;
@@ -176,15 +166,15 @@ export interface Paciente {
 }
 
 export type TipoAccionChat =
-  | 'MOSTRAR_SERVICIOS'
-  | 'MOSTRAR_CITAS'
-  | 'AGENDAR_CITA'
-  | 'CANCELAR_CITA'
-  | 'REAGENDAR_CITA'
-  | 'CONTINUAR_TRATAMIENTO'
-  | 'ABRIR_ODONTOGRAMA'
-  | 'MODIFICAR_ODONTOGRAMA'
-  | 'IR_A_LOGIN';
+  | "MOSTRAR_SERVICIOS"
+  | "MOSTRAR_CITAS"
+  | "AGENDAR_CITA"
+  | "CANCELAR_CITA"
+  | "REAGENDAR_CITA"
+  | "CONTINUAR_TRATAMIENTO"
+  | "ABRIR_ODONTOGRAMA"
+  | "MODIFICAR_ODONTOGRAMA"
+  | "IR_A_LOGIN";
 
 export interface AccionEstructuradaChat {
   id: string;
@@ -192,11 +182,17 @@ export interface AccionEstructuradaChat {
   etiqueta: string;
   requiereConfirmacion: boolean;
   confirmada?: boolean;
+  estado?: "pendiente" | "completada" | "fallida";
+  error?: string;
   payload: Record<string, unknown>;
 }
 
 export interface ComponenteembebidoChat {
-  tipo: 'TARJETA_CITAS' | 'MINI_ODONTOGRAMA' | 'RESUMEN_TRATAMIENTOS' | 'TABLA_SERVICIOS';
+  tipo:
+    | "TARJETA_CITAS"
+    | "MINI_ODONTOGRAMA"
+    | "RESUMEN_TRATAMIENTOS"
+    | "TABLA_SERVICIOS";
   datos: unknown;
 }
 
@@ -208,7 +204,7 @@ export interface RespuestaChat {
 
 export interface MensajeChat {
   id: string;
-  emisor: 'USUARIO' | 'ASISTENTE';
+  emisor: "USUARIO" | "ASISTENTE";
   texto: string;
   fechaHora: string;
   acciones?: AccionEstructuradaChat[];
@@ -216,7 +212,7 @@ export interface MensajeChat {
 }
 
 export interface ContextoChat {
-  rolActual: RolUsuario | 'VISITANTE';
+  rolActual: RolUsuario | "VISITANTE";
   pacienteActivoId?: string;
   dentistaActivoId?: string;
 }

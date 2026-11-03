@@ -1,80 +1,126 @@
-/**
- * CLIENTE HTTP ÚNICO Y CENTRALIZADO
- * Conecta con el futuro backend en NestJS o API Gateway mediante una única URL base:
- * process.env.NEXT_PUBLIC_API_URL
- */
-
-const BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
-
-let inMemoryAccessToken: string | null = null;
-let inMemoryRefreshToken: string | null = null;
-
-export function setHttpTokens(access: string | null, refresh: string | null) {
-  inMemoryAccessToken = access;
-  inMemoryRefreshToken = refresh;
+import { z } from "zod";
+import { authSchema, type AuthDto } from "./schemas";
+const BASE_URL = "/api/backend";
+let accessToken: string | null = null;
+let refreshPromise: Promise<AuthDto> | null = null;
+let generation = 0;
+let onExpired: (() => void) | undefined;
+export function onHttpSessionExpired(listener: () => void) {
+  onExpired = listener;
 }
-
+export function setHttpTokens(access: string | null) {
+  accessToken = access;
+  generation++;
+}
 export class HttpApiError extends Error {
   constructor(
     public status: number,
     message: string,
-    public code?: string
+    public code?: string,
   ) {
     super(message);
-    this.name = 'HttpApiError';
+    this.name = "HttpApiError";
   }
 }
-
-export async function httpClient<T>(
-  endpoint: string,
-  options: RequestInit = {}
-): Promise<T> {
-  const headers = new Headers(options.headers || {});
-  headers.set('Content-Type', 'application/json');
-  if (inMemoryAccessToken) {
-    headers.set('Authorization', `Bearer ${inMemoryAccessToken}`);
-  }
-
-  const response = await fetch(`${BASE_URL}${endpoint}`, {
-    ...options,
-    headers,
-    credentials: 'include', // Soporte para cookies httpOnly cuando NestJS esté en producción
-  });
-
-  // Interceptor de expiración 401 -> Refresh Token automático
-  if (response.status === 401 && inMemoryRefreshToken) {
-    const refreshRes = await fetch(`${BASE_URL}/auth/refresh`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({refreshToken: inMemoryRefreshToken}),
-      credentials: 'include',
-    });
-
-    if (refreshRes.ok) {
-      const data = await refreshRes.json();
-      inMemoryAccessToken = data.accessToken;
-      headers.set('Authorization', `Bearer ${inMemoryAccessToken}`);
-      const retryRes = await fetch(`${BASE_URL}${endpoint}`, {
-        ...options,
-        headers,
-        credentials: 'include',
-      });
-      if (!retryRes.ok) {
-        throw new HttpApiError(retryRes.status, 'Error tras renovar sesión.');
-      }
-      return retryRes.json() as Promise<T>;
-    }
-  }
-
-  if (!response.ok) {
-    const errBody = await response.json().catch(() => ({}));
+export function parseResponse<T>(schema: z.ZodType<T>, value: unknown): T {
+  const result = schema.safeParse(value);
+  if (!result.success)
     throw new HttpApiError(
-      response.status,
-      errBody.message || `Error HTTP ${response.status} en ${endpoint}`,
-      errBody.code
+      502,
+      "La respuesta del servidor no coincide con el contrato.",
+      "INVALID_RESPONSE",
+    );
+  return result.data;
+}
+async function body(response: Response): Promise<unknown> {
+  if (response.status === 204) return undefined;
+  const text = await response.text();
+  if (!text.trim()) return undefined;
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    throw new HttpApiError(
+      502,
+      "El servidor devolvió una respuesta inválida.",
+      "INVALID_JSON",
     );
   }
-
-  return response.json() as Promise<T>;
+}
+async function checked(response: Response): Promise<unknown> {
+  const value = await body(response);
+  if (!response.ok) {
+    const err = z
+      .object({
+        message: z.union([z.string(), z.array(z.string())]).optional(),
+        code: z.string().optional(),
+      })
+      .safeParse(value);
+    const message = err.success ? err.data.message : undefined;
+    throw new HttpApiError(
+      response.status,
+      Array.isArray(message)
+        ? message.join(" ")
+        : message ||
+            `No fue posible completar la solicitud (${response.status}).`,
+      err.success ? err.data.code : undefined,
+    );
+  }
+  return value;
+}
+export async function refreshHttpSession(): Promise<AuthDto> {
+  if (!refreshPromise) {
+    const current = generation;
+    refreshPromise = (async () => {
+      try {
+        const res = await fetch(`${BASE_URL}/auth/refresh`, {
+          method: "POST",
+          credentials: "same-origin",
+          cache: "no-store",
+        });
+        const dto = parseResponse(authSchema, await checked(res));
+        if (generation !== current)
+          throw new HttpApiError(401, "La sesión se cerró.");
+        accessToken = dto.access_token;
+        return dto;
+      } catch (error) {
+        if (generation === current) {
+          setHttpTokens(null);
+          onExpired?.();
+        }
+        throw error;
+      } finally {
+        refreshPromise = null;
+      }
+    })();
+  }
+  return refreshPromise;
+}
+export async function httpClient<T = unknown>(
+  endpoint: string,
+  options: RequestInit = {},
+  schema?: z.ZodType<T>,
+): Promise<T> {
+  const headers = new Headers(options.headers);
+  if (options.body) headers.set("Content-Type", "application/json");
+  const tokenAtStart = accessToken;
+  if (tokenAtStart) headers.set("Authorization", `Bearer ${tokenAtStart}`);
+  const send = () =>
+    fetch(`${BASE_URL}${endpoint}`, {
+      ...options,
+      headers,
+      credentials: "same-origin",
+      cache: "no-store",
+    });
+  let response = await send();
+  if (response.status === 401 && !endpoint.startsWith("/auth/")) {
+    if (tokenAtStart === accessToken) await refreshHttpSession();
+    if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
+    response = await send();
+    if (response.status === 401) {
+      setHttpTokens(null);
+      onExpired?.();
+    }
+  }
+  const value = await checked(response);
+  return schema ? parseResponse(schema, value) : (value as T);
 }

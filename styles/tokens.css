@@ -4,7 +4,7 @@
   --color-bg-surface: #FFFFFF;
   --color-bg-subtle: #F3F1EC;
   --color-border-base: #E5E0D8;
-  --color-border-strong: #CBD5E1;
+  --color-border-strong: #64748B;
 
   --color-primary: #115E59;
   --color-primary-hover: #0F766E;
@@ -14,7 +14,7 @@
   --color-secondary: #0F172A;
   --color-text-main: #0F172A;
   --color-text-muted: #475569;
-  --color-text-subtle: #64748B;
+  --color-text-subtle: #475569;
 
   /* Estados Semánticos y Clínicos del Odontograma */
   --color-tooth-sano: #FFFFFF;

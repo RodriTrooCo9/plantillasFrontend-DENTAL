@@ -1,4 +1,4 @@
-import {
+import type {
   IAuthRepository,
   IPacientesRepository,
   ICitasRepository,
@@ -10,233 +10,328 @@ import {
   EditarDientePayload,
   CrearEntradaHistorialPayload,
   CrearTratamientoPayload,
-} from '@/data/repositories';
+} from "@/data/repositories";
+import type { Tratamiento, ContextoChat } from "@/domain";
+import { z } from "zod";
 import {
-  UsuarioAutenticado,
-  Paciente,
-  Dentista,
-  ServicioClinico,
-  Cita,
-  Tratamiento,
-  EntradaHistorialClinico,
-  Odontograma,
-  BloqueoHorario,
-  RespuestaChat,
-  ContextoChat,
-} from '@/domain';
-import {httpClient, setHttpTokens} from './client';
+  httpClient,
+  HttpApiError,
+  setHttpTokens,
+  refreshHttpSession,
+} from "./client";
 import {
-  PacienteDto,
-  CitaDto,
+  authSchema,
+  userSchema,
+  recoverySchema,
+  pacienteSchema,
+  citaSchema,
+  historialSchema,
+  tratamientoSchema,
+  servicioSchema,
+  dentistaSchema,
+  disponibilidadSchema,
+  bloqueoSchema,
+  odontogramaSchema,
+  chatSchema,
+} from "./schemas";
+import {
+  mapAuthDtoToDomain,
+  mapUserDtoToDomain,
   mapPacienteDtoToDomain,
   mapCitaDtoToDomain,
-  mapOdontogramaDtoToDomain,
-  mapTratamientoDtoToDomain,
   mapHistorialDtoToDomain,
-} from './mappers';
-
+  mapTratamientoDtoToDomain,
+  mapOdontogramaDtoToDomain,
+  mapChatDtoToDomain,
+} from "./mappers";
+const segment = (value: string) => encodeURIComponent(value);
+async function clinicalAuthor() {
+  const user = await httpClient("/auth/me", {}, userSchema);
+  if (user.rol !== "DENTISTA")
+    throw new HttpApiError(
+      403,
+      "Solo un dentista puede registrar cambios clínicos.",
+    );
+  return user;
+}
+const json = (method: string, value: unknown): RequestInit => ({
+  method,
+  body: JSON.stringify(value),
+});
 export class HttpAuthRepository implements IAuthRepository {
-  async login(payload: LoginPayload): Promise<UsuarioAutenticado> {
-    const res = await httpClient<UsuarioAutenticado>('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-    setHttpTokens(res.accessToken, res.refreshToken);
-    return res;
+  async login(payload: LoginPayload) {
+    const dto = await httpClient(
+      "/auth/login",
+      json("POST", payload),
+      authSchema,
+    );
+    setHttpTokens(dto.access_token);
+    return mapAuthDtoToDomain(dto);
   }
-
-  async recoverPassword(email: string): Promise<{mensaje: string}> {
-    return httpClient<{mensaje: string}>('/auth/forgot-password', {
-      method: 'POST',
-      body: JSON.stringify({email}),
-    });
+  async getSession() {
+    try {
+      const dto = await httpClient("/auth/me", {}, userSchema);
+      const refreshed = await refreshHttpSession();
+      if (dto.id !== refreshed.user.id || dto.rol !== refreshed.user.rol) {
+        setHttpTokens(null);
+        throw new HttpApiError(
+          401,
+          "La sesión cambió. Inicia sesión nuevamente.",
+        );
+      }
+      return mapAuthDtoToDomain(refreshed);
+    } catch (e) {
+      if (e instanceof HttpApiError && e.status === 401) return null;
+      throw e;
+    }
   }
-
-  async refreshToken(refreshToken: string): Promise<{accessToken: string}> {
-    return httpClient<{accessToken: string}>('/auth/refresh', {
-      method: 'POST',
-      body: JSON.stringify({refreshToken}),
-    });
+  async recoverPassword(email: string) {
+    const dto = await httpClient(
+      "/auth/forgot-password",
+      json("POST", { email }),
+      recoverySchema,
+    );
+    return { mensaje: dto.message };
   }
-
-  async logout(): Promise<void> {
-    await httpClient('/auth/logout', {method: 'POST'});
-    setHttpTokens(null, null);
+  async refreshToken() {
+    return mapAuthDtoToDomain(await refreshHttpSession());
+  }
+  async logout() {
+    try {
+      await httpClient(
+        "/auth/logout",
+        { method: "POST" },
+        z.union([z.object({ ok: z.literal(true) }), z.undefined()]),
+      );
+    } finally {
+      setHttpTokens(null);
+    }
   }
 }
-
 export class HttpPacientesRepository implements IPacientesRepository {
-  async listarPacientes(busqueda?: string): Promise<Paciente[]> {
-    const q = busqueda ? `?search=${encodeURIComponent(busqueda)}` : '';
-    const dtos = await httpClient<PacienteDto[]>(`/patients${q}`);
-    return dtos.map(mapPacienteDtoToDomain);
+  async listarPacientes(busqueda?: string) {
+    return (
+      await httpClient(
+        `/pacientes${busqueda ? `?q=${encodeURIComponent(busqueda)}` : ""}`,
+        {},
+        z.array(pacienteSchema),
+      )
+    ).map(mapPacienteDtoToDomain);
   }
-
-  async obtenerPacientePorId(pacienteId: string): Promise<Paciente | null> {
-    const dto = await httpClient<PacienteDto>(`/patients/${pacienteId}`);
-    return mapPacienteDtoToDomain(dto);
-  }
-
-  async obtenerHistorialClinico(
-    pacienteId: string
-  ): Promise<EntradaHistorialClinico[]> {
-    const dtos = await httpClient<EntradaHistorialClinico[]>(
-      `/patients/${pacienteId}/clinical-history`
-    );
-    return dtos.map(mapHistorialDtoToDomain);
-  }
-
-  async agregarEntradaHistorial(
-    payload: CrearEntradaHistorialPayload
-  ): Promise<EntradaHistorialClinico> {
-    return httpClient<EntradaHistorialClinico>(
-      `/patients/${payload.pacienteId}/clinical-history`,
-      {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      }
+  async obtenerPacientePorId(id: string) {
+    return mapPacienteDtoToDomain(
+      await httpClient(`/pacientes/${segment(id)}`, {}, pacienteSchema),
     );
   }
-
-  async obtenerTratamientosPorPaciente(
-    pacienteId: string
-  ): Promise<Tratamiento[]> {
-    const dtos = await httpClient<Tratamiento[]>(
-      `/patients/${pacienteId}/treatments`
-    );
-    return dtos.map(mapTratamientoDtoToDomain);
+  async obtenerHistorialClinico(id: string) {
+    return (
+      await httpClient(
+        `/pacientes/${segment(id)}/historial`,
+        {},
+        z.array(historialSchema),
+      )
+    ).map(mapHistorialDtoToDomain);
   }
-
-  async crearTratamiento(payload: CrearTratamientoPayload): Promise<Tratamiento> {
-    return httpClient<Tratamiento>(
-      `/patients/${payload.pacienteId}/treatments`,
-      {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      }
+  async agregarEntradaHistorial(p: CrearEntradaHistorialPayload) {
+    const user = await clinicalAuthor();
+    return mapHistorialDtoToDomain(
+      await httpClient(
+        `/pacientes/${segment(p.pacienteId)}/historial`,
+        json("POST", {
+          tipo: p.tipo,
+          diagnostico: p.diagnostico,
+          procedimientoRealizado: p.procedimientoRealizado,
+          notasEvolucion: p.notasClinicas,
+          dentistaId: user.dentista_id,
+          dentistaNombre: user.nombre_completo,
+        }),
+        historialSchema,
+      ),
     );
   }
-
+  async obtenerTratamientosPorPaciente(id: string) {
+    return (
+      await httpClient(
+        `/pacientes/${segment(id)}/tratamientos`,
+        {},
+        z.array(tratamientoSchema),
+      )
+    ).map(mapTratamientoDtoToDomain);
+  }
+  async crearTratamiento(p: CrearTratamientoPayload) {
+    const user = await clinicalAuthor();
+    return mapTratamientoDtoToDomain(
+      await httpClient(
+        `/pacientes/${segment(p.pacienteId)}/tratamientos`,
+        json("POST", {
+          servicioId: p.servicioId,
+          nombre: p.nombre,
+          dentistaId: user.dentista_id,
+          dentistaNombre: user.nombre_completo,
+          costoTotal: p.costoTotalMXN,
+          sesionesTotales: p.sesionesTotales,
+          dientesInvolucrados: p.dientesFDI,
+          proximaFechaSugerida: p.proximaFechaSugerida,
+          notasEvolucion: p.notasEvolucion,
+        }),
+        tratamientoSchema,
+      ),
+    );
+  }
   async actualizarEstadoTratamiento(
-    tratamientoId: string,
-    estado: Tratamiento['estado'],
-    sesionesCompletadas: number
-  ): Promise<Tratamiento> {
-    return httpClient<Tratamiento>(`/treatments/${tratamientoId}`, {
-      method: 'PATCH',
-      body: JSON.stringify({estado, sesionesCompletadas}),
-    });
+    id: string,
+    estado: Tratamiento["estado"],
+    sesionesCompletadas: number,
+  ) {
+    return mapTratamientoDtoToDomain(
+      await httpClient(
+        `/tratamientos/${segment(id)}`,
+        json("PATCH", { estado, sesionesCompletadas }),
+        tratamientoSchema,
+      ),
+    );
   }
 }
-
 export class HttpCitasRepository implements ICitasRepository {
-  async listarServicios(): Promise<ServicioClinico[]> {
-    return httpClient<ServicioClinico[]>('/services');
+  listarServicios() {
+    return httpClient("/servicios", {}, z.array(servicioSchema));
   }
-
-  async listarDentistas(): Promise<Dentista[]> {
-    return httpClient<Dentista[]>('/dentists');
+  listarDentistas() {
+    return httpClient("/dentistas", {}, z.array(dentistaSchema));
   }
-
-  async listarCitasPorPaciente(pacienteId: string): Promise<Cita[]> {
-    const dtos = await httpClient<CitaDto[]>(
-      `/appointments?patientId=${encodeURIComponent(pacienteId)}`
+  listarBloqueosDentista(id: string) {
+    return httpClient(
+      `/dentistas/${segment(id)}/bloqueos`,
+      {},
+      z.array(bloqueoSchema),
     );
-    return dtos.map(mapCitaDtoToDomain);
   }
-
-  async listarCitasPorDentista(
-    dentistaId: string,
-    fecha?: string
-  ): Promise<Cita[]> {
-    const params = new URLSearchParams({dentistId: dentistaId});
-    if (fecha) params.set('date', fecha);
-    const dtos = await httpClient<CitaDto[]>(
-      `/appointments?${params.toString()}`
+  async listarCitasPorPaciente(id: string) {
+    return (
+      await httpClient(
+        `/citas?${new URLSearchParams({ pacienteId: id })}`,
+        {},
+        z.array(citaSchema),
+      )
+    ).map(mapCitaDtoToDomain);
+  }
+  async listarCitasPorDentista(id: string, fecha?: string) {
+    const q = new URLSearchParams({ dentistaId: id });
+    if (fecha) q.set("fecha", fecha);
+    return (await httpClient(`/citas?${q}`, {}, z.array(citaSchema))).map(
+      mapCitaDtoToDomain,
     );
-    return dtos.map(mapCitaDtoToDomain);
   }
-
   async obtenerHorariosDisponibles(
-    dentistaId: string,
-    fecha: string
-  ): Promise<string[]> {
-    return httpClient<string[]>(
-      `/dentists/${dentistaId}/availability?date=${encodeURIComponent(fecha)}`
+    id: string,
+    fecha: string,
+    servicioId?: string,
+  ) {
+    return (
+      await httpClient(
+        `/dentistas/${segment(id)}/disponibilidad?${new URLSearchParams({ fecha, ...(servicioId ? { servicioId } : {}) })}`,
+        {},
+        disponibilidadSchema,
+      )
+    )
+      .filter((h) => h.disponible)
+      .map((h) => h.hora);
+  }
+  async agendarCita(p: CrearCitaPayload) {
+    return mapCitaDtoToDomain(
+      await httpClient(
+        "/citas",
+        json("POST", {
+          pacienteId: p.pacienteId,
+          dentistaId: p.dentistaId,
+          servicioId: p.servicioId,
+          tratamientoId: p.tratamientoId,
+          fecha: p.fecha,
+          horaInicio: p.hora,
+          motivo: p.motivoConsulta,
+        }),
+        citaSchema,
+      ),
     );
   }
-
-  async agendarCita(payload: CrearCitaPayload): Promise<Cita> {
-    const dto = await httpClient<CitaDto>('/appointments', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-    return mapCitaDtoToDomain(dto);
-  }
-
-  async cancelarCita(citaId: string, motivo: string): Promise<Cita> {
-    const dto = await httpClient<CitaDto>(`/appointments/${citaId}/cancel`, {
-      method: 'PATCH',
-      body: JSON.stringify({motivo}),
-    });
-    return mapCitaDtoToDomain(dto);
-  }
-
-  async reagendarCita(payload: ReagendarCitaPayload): Promise<Cita> {
-    const dto = await httpClient<CitaDto>(
-      `/appointments/${payload.citaId}/reschedule`,
-      {
-        method: 'PATCH',
-        body: JSON.stringify(payload),
-      }
+  async cancelarCita(id: string, motivo: string) {
+    return mapCitaDtoToDomain(
+      await httpClient(
+        `/citas/${segment(id)}/cancelar`,
+        json("POST", { motivoCancelacion: motivo }),
+        citaSchema,
+      ),
     );
-    return mapCitaDtoToDomain(dto);
   }
-
-  async bloquearHorarioDentista(
-    dentistaId: string,
+  async reagendarCita(p: ReagendarCitaPayload) {
+    return mapCitaDtoToDomain(
+      await httpClient(
+        `/citas/${segment(p.citaId)}/reagendar`,
+        json("PATCH", {
+          nuevaFecha: p.nuevaFecha,
+          nuevaHoraInicio: p.nuevaHora,
+          notificarPaciente: true,
+        }),
+        citaSchema,
+      ),
+    );
+  }
+  bloquearHorarioDentista(
+    id: string,
     fecha: string,
     horaInicio: string,
     horaFin: string,
-    motivo: string
-  ): Promise<BloqueoHorario> {
-    return httpClient<BloqueoHorario>(`/dentists/${dentistaId}/blocks`, {
-      method: 'POST',
-      body: JSON.stringify({fecha, horaInicio, horaFin, motivo}),
-    });
+    motivo: string,
+  ) {
+    return httpClient(
+      `/dentistas/${segment(id)}/bloqueos`,
+      json("POST", { fecha, horaInicio, horaFin, motivo }),
+      bloqueoSchema,
+    );
   }
 }
-
 export class HttpOdontogramaRepository implements IOdontogramaRepository {
-  async obtenerOdontograma(pacienteId: string): Promise<Odontograma> {
-    const dto = await httpClient<Odontograma>(
-      `/patients/${pacienteId}/odontogram`
+  async obtenerOdontograma(id: string) {
+    return mapOdontogramaDtoToDomain(
+      await httpClient(`/odontogramas/${segment(id)}`, {}, odontogramaSchema),
     );
-    return mapOdontogramaDtoToDomain(dto);
   }
-
-  async registrarCambioDiente(
-    payload: EditarDientePayload
-  ): Promise<Odontograma> {
-    const dto = await httpClient<Odontograma>(
-      `/patients/${payload.pacienteId}/odontogram/teeth/${payload.numeroFDI}`,
-      {
-        method: 'PATCH',
-        body: JSON.stringify(payload),
-      }
+  async registrarCambioDiente(p: EditarDientePayload) {
+    const user = await clinicalAuthor();
+    return mapOdontogramaDtoToDomain(
+      await httpClient(
+        `/odontogramas/${segment(p.pacienteId)}/dientes/${p.numeroFDI}`,
+        json("PATCH", {
+          superficie: p.superficie,
+          estadoNuevo: p.nuevoEstado,
+          procedimiento: p.procedimiento,
+          nota: p.nota,
+          dentistaId: user.dentista_id,
+          dentistaNombre: user.nombre_completo,
+        }),
+        odontogramaSchema,
+      ),
     );
-    return mapOdontogramaDtoToDomain(dto);
   }
 }
-
 export class HttpChatRepository implements IChatRepository {
   async sendMessage(
     mensaje: string,
-    contexto: ContextoChat
-  ): Promise<RespuestaChat> {
-    return httpClient<RespuestaChat>('/chat', {
-      method: 'POST',
-      body: JSON.stringify({mensaje, contexto}),
-    });
+    c: ContextoChat,
+    confirmarAccion?: { id: string; token: string },
+  ) {
+    return mapChatDtoToDomain(
+      await httpClient(
+        "/chat",
+        json("POST", {
+          mensaje,
+          rol: c.rolActual,
+          pacienteId: c.pacienteActivoId ?? null,
+          dentistaId: c.dentistaActivoId ?? null,
+          confirmarAccion: confirmarAccion ?? null,
+        }),
+        chatSchema,
+      ),
+    );
   }
 }

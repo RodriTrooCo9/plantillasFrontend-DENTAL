@@ -1,12 +1,17 @@
-'use client';
+"use client";
 
-import React from 'react';
-import Link from 'next/link';
-import {useRouter} from 'next/navigation';
-import {useCitas} from '@/hooks';
-import {Card, Button} from '@/components/ui';
-import {HeroClinicVisual} from '@/components/ClinicalVisuals';
-import {ChatbotAssistant} from '@/features/chatbot/ChatbotAssistant';
+import { useAuth } from "@/hooks";
+import { bookingDestination } from "@/domain/auth-routing";
+import { TopNavbar } from "@/components/TopNavbar";
+
+import React from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { QueryState } from "@/components/ui/QueryState";
+import { useCatalogoPublico } from "@/hooks";
+import { Card, Button } from "@/components/ui";
+import { HeroClinicVisual } from "@/components/ClinicalVisuals";
+import { ChatbotAssistant } from "@/features/chatbot/ChatbotAssistant";
 import {
   Calendar,
   Lock,
@@ -15,86 +20,36 @@ import {
   MapPin,
   Phone,
   ShieldCheck,
-} from 'lucide-react';
+} from "lucide-react";
 
 const PREGUNTAS_FRECUENTES = [
   {
-    pregunta: '¿Qué incluye la primera consulta de valoración odontológica?',
+    pregunta: "¿Qué incluye la primera consulta de valoración odontológica?",
     respuesta:
-      'Incluye escaneo intraoral óptico 3D sin radiación, radiografía digital, diagnóstico periodontal completo y apertura de tu odontograma de 32 piezas FDI en el Portal del Paciente.',
+      "Incluye escaneo intraoral óptico 3D sin radiación, radiografía digital, diagnóstico periodontal completo y apertura de tu odontograma de 32 piezas FDI en el Portal del Paciente.",
   },
   {
-    pregunta: '¿Cuál es la política para cancelar o reprogramar una cita?',
+    pregunta: "¿Cuál es la política para cancelar o reprogramar una cita?",
     respuesta:
-      'Puedes cancelar o reagendar desde tu Portal del Paciente o mediante el Asistente Clínico hasta con 24 horas de anticipación sin ningún cargo.',
+      "Puedes cancelar o reagendar desde tu Portal del Paciente o mediante el Asistente Clínico hasta con 24 horas de anticipación sin ningún cargo.",
   },
   {
-    pregunta: '¿Quién puede editar mi odontograma digital?',
+    pregunta: "¿Quién puede editar mi odontograma digital?",
     respuesta:
-      'Por seguridad médico-legal, el paciente visualiza su odontograma de 32 dientes en modo de solo lectura. Únicamente los odontólogos acreditados pueden registrar cambios, los cuales quedan respaldados en un historial de auditoría.',
+      "Por seguridad médico-legal, el paciente visualiza su odontograma de 32 dientes en modo de solo lectura. Únicamente los odontólogos acreditados pueden registrar cambios, los cuales quedan respaldados en un historial de auditoría.",
   },
 ];
 
 export default function PublicLandingPage() {
   const router = useRouter();
-  const {servicios, dentistas} = useCitas();
+  const { user } = useAuth();
+  const book = (id?: string) => router.push(bookingDestination(id, user?.rol));
+  const { servicios, dentistas, loading, error, reload } = useCatalogoPublico();
 
   return (
     <div className="min-h-screen flex flex-col bg-[var(--color-bg-canvas)] text-[var(--color-text-main)] pb-20">
       {/* Top Bar Estricta de 3 Zonas */}
-      <header className="sticky top-0 z-40 bg-[var(--color-bg-canvas)]/95 backdrop-blur-md border-b border-[var(--color-border-base)]">
-        <div className="max-w-[1280px] mx-auto flex items-center justify-between gap-8 px-6 py-4">
-          <Link
-            href="/"
-            className="text-lg font-bold tracking-tight whitespace-nowrap shrink-0"
-            style={{fontFamily: 'var(--font-fraunces), serif'}}
-          >
-            Lumina Odontología
-          </Link>
-
-          <nav
-            aria-label="Navegación principal"
-            className="hidden md:flex items-center gap-6 text-sm font-medium text-[var(--color-text-muted)]"
-          >
-            <a
-              href="#servicios"
-              className="hover:text-slate-900 transition-colors whitespace-nowrap shrink-0"
-            >
-              Servicios
-            </a>
-            <a
-              href="#equipo"
-              className="hover:text-slate-900 transition-colors whitespace-nowrap shrink-0"
-            >
-              Equipo Médico
-            </a>
-            <a
-              href="#faq"
-              className="hover:text-slate-900 transition-colors whitespace-nowrap shrink-0"
-            >
-              Preguntas Frecuentes
-            </a>
-            <Link
-              href="/paciente"
-              className="hover:text-slate-900 transition-colors whitespace-nowrap shrink-0"
-            >
-              Portal Paciente
-            </Link>
-            <Link
-              href="/dentista"
-              className="hover:text-slate-900 transition-colors whitespace-nowrap shrink-0"
-            >
-              Portal Dentista
-            </Link>
-          </nav>
-
-          <div className="flex items-center shrink-0">
-            <Button onClick={() => router.push('/login')}>
-              Iniciar sesión
-            </Button>
-          </div>
-        </div>
-      </header>
+      <TopNavbar />
 
       <main className="flex-1">
         {/* 1. HERO CON PROPUESTA DE VALOR Y BOTONES AGENDAR CITA / INICIAR SESIÓN */}
@@ -105,18 +60,19 @@ export default function PublicLandingPage() {
                 <div className="flex items-center gap-2 text-xs font-medium text-[var(--color-primary)]">
                   <span>Odontología Digital de Especialidades</span>
                   <span aria-hidden="true">·</span>
-                  <span>Arquitectura Clínica Conectada</span>
+                  <span>Atención cercana y personalizada</span>
                 </div>
 
                 <h1
                   className="mt-3 font-semibold tracking-tight leading-[1.12] text-slate-900"
                   style={{
-                    fontFamily: 'var(--font-fraunces), serif',
-                    fontSize: 'clamp(2.25rem, 3.8vw, 3.5rem)',
-                    textWrap: 'balance',
+                    fontFamily: "var(--font-fraunces), serif",
+                    fontSize: "clamp(2.25rem, 3.8vw, 3.5rem)",
+                    textWrap: "balance",
                   }}
                 >
-                  Cuidado odontológico de alta precisión con expediente y odontograma digital
+                  Cuidado odontológico de alta precisión con expediente y
+                  odontograma digital
                 </h1>
 
                 <p className="mt-4 text-base text-[var(--color-text-muted)] leading-relaxed max-w-xl">
@@ -127,10 +83,7 @@ export default function PublicLandingPage() {
                 </p>
 
                 <div className="mt-7 flex flex-wrap items-center gap-3">
-                  <Button
-                    size="lg"
-                    onClick={() => router.push('/paciente')}
-                  >
+                  <Button size="lg" onClick={() => book()}>
                     <Calendar className="w-4 h-4" />
                     <span>Agendar cita</span>
                   </Button>
@@ -138,7 +91,7 @@ export default function PublicLandingPage() {
                   <Button
                     variant="outline"
                     size="lg"
-                    onClick={() => router.push('/login')}
+                    onClick={() => router.push("/login")}
                   >
                     <Lock className="w-4 h-4 text-teal-800" />
                     <span>Iniciar sesión</span>
@@ -163,14 +116,14 @@ export default function PublicLandingPage() {
                     <Button
                       variant="secondary"
                       size="sm"
-                      onClick={() => router.push('/paciente')}
+                      onClick={() => book()}
                     >
                       Portal Paciente
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => router.push('/dentista')}
+                      onClick={() => router.push("/dentista")}
                     >
                       Portal Dentista
                     </Button>
@@ -181,7 +134,7 @@ export default function PublicLandingPage() {
 
             <div className="lg:col-span-6">
               <HeroClinicVisual
-                onSelectQuickService={() => router.push('/paciente')}
+                onSelectQuickService={() => book(servicios[0]?.id)}
               />
             </div>
           </div>
@@ -195,67 +148,72 @@ export default function PublicLandingPage() {
         >
           <div>
             <p className="text-xs font-medium text-[var(--color-primary)]">
-              Catálogo Clínico Configurable
+              Encuentra el cuidado que necesitas
             </p>
             <h2
               id="servicios-heading"
               className="mt-1 text-2xl sm:text-3xl font-semibold text-slate-900"
-              style={{fontFamily: 'var(--font-fraunces), serif'}}
+              style={{ fontFamily: "var(--font-fraunces), serif" }}
             >
               Nuestros Servicios Odontológicos
             </h2>
           </div>
 
-          <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {servicios.map((srv, idx) => (
-              <Card
-                key={srv.id}
-                className="p-6 flex flex-col justify-between hover:border-stone-300 transition-colors"
-              >
-                <div>
-                  <div className="flex items-center justify-between text-xs text-slate-500">
-                    <span className="font-mono font-bold text-teal-800">
-                      0{idx + 1}. {srv.categoria}
-                    </span>
-                    <span className="font-mono tabular-nums">
-                      {srv.duracionMinutos} min · Garantía {srv.garantiaAnios}{' '}
-                      años
-                    </span>
-                  </div>
-                  <h3 className="mt-2 text-lg font-semibold text-slate-900">
-                    {srv.nombre}
-                  </h3>
-                  <p className="mt-2 text-sm text-slate-600 leading-relaxed">
-                    {srv.descripcionCorta}
-                  </p>
-                  <p className="mt-3 pt-3 border-t border-stone-100 text-xs text-slate-700">
-                    <strong>Protocolo:</strong> {srv.protocoloClinico}
-                  </p>
-                  <p className="mt-1 text-xs text-teal-900">
-                    <strong>Beneficio:</strong> {srv.beneficioMedible}
-                  </p>
-                </div>
-
-                <div className="mt-6 pt-4 border-t border-stone-200 flex items-center justify-between">
+          <QueryState
+            loading={loading}
+            error={error}
+            empty={!servicios.length}
+            onRetry={reload}
+            emptyMessage="El catálogo estará disponible próximamente."
+          >
+            <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {servicios.map((srv, idx) => (
+                <Card
+                  key={srv.id}
+                  className="p-6 flex flex-col justify-between hover:border-stone-300 transition-colors"
+                >
                   <div>
-                    <span className="text-[11px] text-slate-500 block">
-                      Arancel orientativo
-                    </span>
-                    <span className="text-lg font-bold font-mono tabular-nums text-slate-900">
-                      ${srv.precioBaseMXN.toLocaleString('es-MX')} MXN
-                    </span>
+                    <div className="flex items-center justify-between text-xs text-slate-600">
+                      <span className="font-mono font-bold text-teal-800">
+                        0{idx + 1}. {srv.categoria}
+                      </span>
+                      <span className="font-mono tabular-nums">
+                        {srv.duracionMinutos} min · Garantía {srv.garantiaAnios}{" "}
+                        años
+                      </span>
+                    </div>
+                    <h3 className="mt-2 text-lg font-semibold text-slate-900">
+                      {srv.nombre}
+                    </h3>
+                    <p className="mt-2 text-sm text-slate-600 leading-relaxed">
+                      {srv.descripcionCorta}
+                    </p>
+                    <p className="mt-3 pt-3 border-t border-stone-100 text-xs text-slate-700">
+                      <strong>Protocolo:</strong> {srv.protocoloClinico}
+                    </p>
+                    <p className="mt-1 text-xs text-teal-900">
+                      <strong>Beneficio:</strong> {srv.beneficioMedible}
+                    </p>
                   </div>
-                  <Button
-                    size="sm"
-                    onClick={() => router.push('/paciente')}
-                  >
-                    Agendar servicio
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </Button>
-                </div>
-              </Card>
-            ))}
-          </div>
+
+                  <div className="mt-6 pt-4 border-t border-stone-200 flex items-center justify-between">
+                    <div>
+                      <span className="text-[11px] text-slate-600 block">
+                        Arancel orientativo
+                      </span>
+                      <span className="text-lg font-bold font-mono tabular-nums text-slate-900">
+                        ${srv.precioBaseMXN.toLocaleString("es-MX")} MXN
+                      </span>
+                    </div>
+                    <Button size="sm" onClick={() => book(srv.id)}>
+                      Agendar servicio
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </QueryState>
         </section>
 
         {/* 3. SOBRE EL CONSULTORIO Y EQUIPO DE DENTISTAS */}
@@ -272,7 +230,7 @@ export default function PublicLandingPage() {
               <h2
                 id="equipo-heading"
                 className="mt-1 text-2xl sm:text-3xl font-semibold text-slate-900"
-                style={{fontFamily: 'var(--font-fraunces), serif'}}
+                style={{ fontFamily: "var(--font-fraunces), serif" }}
               >
                 Sobre el Consultorio y Nuestro Equipo Médico
               </h2>
@@ -286,7 +244,10 @@ export default function PublicLandingPage() {
 
             <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-6">
               {dentistas.map((doc) => (
-                <Card key={doc.id} className="p-6 flex flex-col justify-between">
+                <Card
+                  key={doc.id}
+                  className="p-6 flex flex-col justify-between"
+                >
                   <div>
                     <span className="text-xs font-mono text-teal-800 font-semibold">
                       Cédula: {doc.cedulaProfesional}
@@ -301,8 +262,8 @@ export default function PublicLandingPage() {
                       {doc.biografiaCorta}
                     </p>
                   </div>
-                  <div className="mt-5 pt-3 border-t border-stone-200 text-xs text-slate-500">
-                    Atención: {doc.diasAtencion.join(', ')}
+                  <div className="mt-5 pt-3 border-t border-stone-200 text-xs text-slate-600">
+                    Atención: {doc.diasAtencion.join(", ")}
                   </div>
                 </Card>
               ))}
@@ -322,7 +283,7 @@ export default function PublicLandingPage() {
               </p>
               <h2
                 className="text-2xl font-semibold text-slate-900"
-                style={{fontFamily: 'var(--font-fraunces), serif'}}
+                style={{ fontFamily: "var(--font-fraunces), serif" }}
               >
                 Testimonios de Pacientes
               </h2>
@@ -354,7 +315,7 @@ export default function PublicLandingPage() {
               </p>
               <h2
                 className="text-2xl font-semibold text-slate-900"
-                style={{fontFamily: 'var(--font-fraunces), serif'}}
+                style={{ fontFamily: "var(--font-fraunces), serif" }}
               >
                 Preguntas Frecuentes
               </h2>
@@ -426,11 +387,11 @@ export default function PublicLandingPage() {
 
       {/* Footer */}
       <footer className="border-t border-[var(--color-border-base)] bg-white">
-        <div className="max-w-[1280px] mx-auto px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
+        <div className="max-w-[1280px] mx-auto px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-600">
           <div>
             <span
               className="font-bold text-slate-900 mr-2"
-              style={{fontFamily: 'var(--font-fraunces), serif'}}
+              style={{ fontFamily: "var(--font-fraunces), serif" }}
             >
               Lumina Odontología
             </span>
@@ -454,7 +415,7 @@ export default function PublicLandingPage() {
       </footer>
 
       {/* Chatbot Flotante en Modo VISITANTE */}
-      <ChatbotAssistant contexto={{rolActual: 'VISITANTE'}} />
+      <ChatbotAssistant contexto={{ rolActual: "VISITANTE" }} />
     </div>
   );
 }

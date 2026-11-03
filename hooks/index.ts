@@ -1,7 +1,22 @@
-'use client';
+"use client";
 
-import {useState, useEffect, useCallback} from 'react';
-import {repositories} from '@/data/factory';
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useSyncExternalStore,
+  useRef,
+} from "react";
+import { useQuery } from "./use-query";
+import {
+  subscribeSession,
+  getSessionSnapshot,
+  getServerSessionSnapshot,
+  bootstrapSession,
+  loginSession,
+  logoutSession,
+} from "@/data/auth/session";
+import { repositories } from "@/data/factory";
 import {
   LoginPayload,
   CrearCitaPayload,
@@ -9,7 +24,7 @@ import {
   EditarDientePayload,
   CrearEntradaHistorialPayload,
   CrearTratamientoPayload,
-} from '@/data/repositories';
+} from "@/data/repositories";
 import {
   UsuarioAutenticado,
   Paciente,
@@ -22,146 +37,101 @@ import {
   MensajeChat,
   ContextoChat,
   AccionEstructuradaChat,
-} from '@/domain';
-
-const STORAGE_AUTH_KEY = 'lumina_auth_session_v2';
+} from "@/domain";
 
 export function useAuth() {
-  const [user, setUser] = useState<UsuarioAutenticado | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-
+  const session = useSyncExternalStore(
+    subscribeSession,
+    getSessionSnapshot,
+    getServerSessionSnapshot,
+  );
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const saved = window.localStorage.getItem(STORAGE_AUTH_KEY);
-      if (saved) {
-        try {
-          setUser(JSON.parse(saved));
-        } catch {
-          window.localStorage.removeItem(STORAGE_AUTH_KEY);
-        }
-      }
-      setLoading(false);
-    }
+    void bootstrapSession();
   }, []);
-
-  const login = useCallback(async (payload: LoginPayload) => {
-    setError(null);
-    setLoading(true);
-    try {
-      const session = await repositories.auth.login(payload);
-      setUser(session);
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem(STORAGE_AUTH_KEY, JSON.stringify(session));
-        document.cookie = `lumina_role=${session.rol}; path=/; max-age=86400`;
-      }
-      return session;
-    } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : 'Error al iniciar sesión.';
-      setError(msg);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const recoverPassword = useCallback(async (email: string) => {
-    return repositories.auth.recoverPassword(email);
-  }, []);
-
-  const logout = useCallback(async () => {
-    await repositories.auth.logout();
-    setUser(null);
-    if (typeof window !== 'undefined') {
-      window.localStorage.removeItem(STORAGE_AUTH_KEY);
-      document.cookie = 'lumina_role=; path=/; max-age=0';
-    }
-  }, []);
-
-  return {user, loading, error, login, recoverPassword, logout};
+  return {
+    ...session,
+    login: loginSession,
+    logout: logoutSession,
+    recoverPassword: repositories.auth.recoverPassword.bind(repositories.auth),
+  };
 }
 
-export function usePacientes(pacienteActivoId?: string) {
-  const [pacientes, setPacientes] = useState<Paciente[]>([]);
-  const [pacienteActual, setPacienteActual] = useState<Paciente | null>(null);
-  const [historial, setHistorial] = useState<EntradaHistorialClinico[]>([]);
-  const [tratamientos, setTratamientos] = useState<Tratamiento[]>([]);
-  const [loading, setLoading] = useState<boolean>(false);
-
-  const recargar = useCallback(
+export function usePacientes(
+  pacienteActivoId?: string,
+  options: { directorio: boolean } = { directorio: true },
+) {
+  const [search, setSearch] = useState("");
+  const loadDirectory = useCallback(
+    () => repositories.pacientes.listarPacientes(search),
+    [search],
+  );
+  const directory = useQuery(
+    `patients:${search}`,
+    loadDirectory,
+    options.directorio,
+  );
+  const reloadDirectory = directory.reload;
+  const pacientes = directory.data || [];
+  const target =
+    pacienteActivoId || (options.directorio ? pacientes[0]?.id : undefined);
+  const loadPatient = useCallback(async () => {
+    if (!target) throw new Error("No hay un expediente seleccionado.");
+    const [pacienteActual, historial, tratamientos] = await Promise.all([
+      repositories.pacientes.obtenerPacientePorId(target),
+      repositories.pacientes.obtenerHistorialClinico(target),
+      repositories.pacientes.obtenerTratamientosPorPaciente(target),
+    ]);
+    return { pacienteActual, historial, tratamientos };
+  }, [target]);
+  const query = useQuery(`patient:${target}`, loadPatient, !!target);
+  const reload = query.reload;
+  const buscarPacientes = useCallback(
     async (busqueda?: string) => {
-      setLoading(true);
-      try {
-        const lista = await repositories.pacientes.listarPacientes(busqueda);
-        setPacientes(lista);
-        const targetId = pacienteActivoId || lista[0]?.id;
-        if (targetId) {
-          const [pac, hist, trts] = await Promise.all([
-            repositories.pacientes.obtenerPacientePorId(targetId),
-            repositories.pacientes.obtenerHistorialClinico(targetId),
-            repositories.pacientes.obtenerTratamientosPorPaciente(targetId),
-          ]);
-          setPacienteActual(pac);
-          setHistorial(hist);
-          setTratamientos(trts);
-        }
-      } finally {
-        setLoading(false);
+      if (busqueda !== undefined) setSearch(busqueda);
+      else {
+        reloadDirectory();
+        reload();
       }
     },
-    [pacienteActivoId]
+    [reloadDirectory, reload],
   );
-
-  useEffect(() => {
-    recargar();
-  }, [recargar]);
-
   const agregarNotaHistorial = useCallback(
     async (payload: CrearEntradaHistorialPayload) => {
-      const nueva =
+      const value =
         await repositories.pacientes.agregarEntradaHistorial(payload);
-      setHistorial((prev) => [nueva, ...prev]);
-      return nueva;
+      reload();
+      return value;
     },
-    []
+    [reload],
   );
-
   const crearTratamiento = useCallback(
     async (payload: CrearTratamientoPayload) => {
-      const nuevo = await repositories.pacientes.crearTratamiento(payload);
-      setTratamientos((prev) => [nuevo, ...prev]);
-      return nuevo;
+      const value = await repositories.pacientes.crearTratamiento(payload);
+      reload();
+      return value;
     },
-    []
+    [reload],
   );
-
   const actualizarTratamiento = useCallback(
-    async (
-      tratamientoId: string,
-      estado: Tratamiento['estado'],
-      sesionesCompletadas: number
-    ) => {
-      const act = await repositories.pacientes.actualizarEstadoTratamiento(
-        tratamientoId,
+    async (id: string, estado: Tratamiento["estado"], sesiones: number) => {
+      const value = await repositories.pacientes.actualizarEstadoTratamiento(
+        id,
         estado,
-        sesionesCompletadas
+        sesiones,
       );
-      setTratamientos((prev) =>
-        prev.map((t) => (t.id === tratamientoId ? act : t))
-      );
-      return act;
+      reload();
+      return value;
     },
-    []
+    [reload],
   );
-
   return {
     pacientes,
-    pacienteActual,
-    historial,
-    tratamientos,
-    loading,
-    buscarPacientes: recargar,
+    pacienteActual: query.data?.pacienteActual || null,
+    historial: query.data?.historial || [],
+    tratamientos: query.data?.tratamientos || [],
+    loading: directory.loading || query.loading,
+    error: directory.error || query.error,
+    buscarPacientes,
     agregarNotaHistorial,
     crearTratamiento,
     actualizarTratamiento,
@@ -169,96 +139,86 @@ export function usePacientes(pacienteActivoId?: string) {
 }
 
 export function useCitas(pacienteId?: string, dentistaId?: string) {
-  const [servicios, setServicios] = useState<ServicioClinico[]>([]);
-  const [dentistas, setDentistas] = useState<Dentista[]>([]);
-  const [citas, setCitas] = useState<Cita[]>([]);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const cargarCitas = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [srvs, docs] = await Promise.all([
-        repositories.citas.listarServicios(),
-        repositories.citas.listarDentistas(),
-      ]);
-      setServicios(srvs);
-      setDentistas(docs);
-
-      if (dentistaId) {
-        const c = await repositories.citas.listarCitasPorDentista(dentistaId);
-        setCitas(c);
-      } else if (pacienteId) {
-        const c = await repositories.citas.listarCitasPorPaciente(pacienteId);
-        setCitas(c);
-      } else {
-        const c = await repositories.citas.listarCitasPorPaciente('pac-1');
-        setCitas(c);
-      }
-    } finally {
-      setLoading(false);
-    }
+  const [mutationError, setMutationError] = useState<string | null>(null);
+  const load = useCallback(async () => {
+    const [servicios, dentistas, citas, bloqueos] = await Promise.all([
+      repositories.citas.listarServicios(),
+      repositories.citas.listarDentistas(),
+      dentistaId
+        ? repositories.citas.listarCitasPorDentista(dentistaId)
+        : pacienteId
+          ? repositories.citas.listarCitasPorPaciente(pacienteId)
+          : Promise.resolve([] as Cita[]),
+      dentistaId
+        ? repositories.citas.listarBloqueosDentista(dentistaId)
+        : Promise.resolve([]),
+    ]);
+    return {
+      servicios,
+      dentistas: dentistas.map((d) =>
+        d.id === dentistaId ? { ...d, bloqueos } : d,
+      ),
+      citas,
+    };
   }, [pacienteId, dentistaId]);
-
-  useEffect(() => {
-    cargarCitas();
-  }, [cargarCitas]);
-
-  const agendarCita = useCallback(async (payload: CrearCitaPayload) => {
-    setError(null);
-    const nueva = await repositories.citas.agendarCita(payload);
-    setCitas((prev) => [nueva, ...prev]);
-    return nueva;
-  }, []);
-
-  const cancelarCita = useCallback(async (citaId: string, motivo: string) => {
-    setError(null);
-    try {
-      const act = await repositories.citas.cancelarCita(citaId, motivo);
-      setCitas((prev) => prev.map((c) => (c.id === citaId ? act : c)));
-      return act;
-    } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : 'No fue posible cancelar la cita.';
-      setError(msg);
-      throw err;
-    }
-  }, []);
-
-  const reagendarCita = useCallback(async (payload: ReagendarCitaPayload) => {
-    setError(null);
-    const act = await repositories.citas.reagendarCita(payload);
-    setCitas((prev) => prev.map((c) => (c.id === payload.citaId ? act : c)));
-    return act;
-  }, []);
-
-  const bloquearHorario = useCallback(
-    async (
-      docId: string,
-      fecha: string,
-      horaInicio: string,
-      horaFin: string,
-      motivo: string
-    ) => {
-      await repositories.citas.bloquearHorarioDentista(
-        docId,
-        fecha,
-        horaInicio,
-        horaFin,
-        motivo
-      );
-      await cargarCitas();
+  const query = useQuery(`appointments:${pacienteId}:${dentistaId}`, load);
+  const reload = query.reload;
+  const mutate = useCallback(
+    async <T>(operation: () => Promise<T>) => {
+      setMutationError(null);
+      try {
+        const result = await operation();
+        reload();
+        return result;
+      } catch (e) {
+        setMutationError(
+          e instanceof Error
+            ? e.message
+            : "No fue posible completar la operación.",
+        );
+        throw e;
+      }
     },
-    [cargarCitas]
+    [reload],
   );
-
+  const agendarCita = useCallback(
+    (p: CrearCitaPayload) => mutate(() => repositories.citas.agendarCita(p)),
+    [mutate],
+  );
+  const cancelarCita = useCallback(
+    (id: string, motivo: string) =>
+      mutate(() => repositories.citas.cancelarCita(id, motivo)),
+    [mutate],
+  );
+  const reagendarCita = useCallback(
+    (p: ReagendarCitaPayload) =>
+      mutate(() => repositories.citas.reagendarCita(p)),
+    [mutate],
+  );
+  const bloquearHorario = useCallback(
+    (id: string, fecha: string, inicio: string, fin: string, motivo: string) =>
+      mutate(() =>
+        repositories.citas.bloquearHorarioDentista(
+          id,
+          fecha,
+          inicio,
+          fin,
+          motivo,
+        ),
+      ),
+    [mutate],
+  );
+  const recargarCitas = useCallback(() => {
+    setMutationError(null);
+    reload();
+  }, [reload]);
   return {
-    servicios,
-    dentistas,
-    citas,
-    loading,
-    error,
-    recargarCitas: cargarCitas,
+    servicios: query.data?.servicios || [],
+    dentistas: query.data?.dentistas || [],
+    citas: query.data?.citas || [],
+    loading: query.loading,
+    error: mutationError || query.error,
+    recargarCitas,
     agendarCita,
     cancelarCita,
     reagendarCita,
@@ -267,107 +227,188 @@ export function useCitas(pacienteId?: string, dentistaId?: string) {
 }
 
 export function useOdontograma(pacienteId: string) {
-  const [odontograma, setOdontograma] = useState<Odontograma | null>(null);
-  const [loading, setLoading] = useState<boolean>(false);
-
-  const cargar = useCallback(async () => {
-    if (!pacienteId) return;
-    setLoading(true);
-    try {
-      const data = await repositories.odontograma.obtenerOdontograma(pacienteId);
-      setOdontograma(data);
-    } finally {
-      setLoading(false);
-    }
-  }, [pacienteId]);
-
-  useEffect(() => {
-    cargar();
-  }, [cargar]);
-
-  const editarDiente = useCallback(async (payload: EditarDientePayload) => {
-    const actualizado =
-      await repositories.odontograma.registrarCambioDiente(payload);
-    setOdontograma(actualizado);
-    return actualizado;
-  }, []);
-
-  return {odontograma, loading, recargarOdontograma: cargar, editarDiente};
+  const load = useCallback(
+    () => repositories.odontograma.obtenerOdontograma(pacienteId),
+    [pacienteId],
+  );
+  const query = useQuery(`odontogram:${pacienteId}`, load, !!pacienteId);
+  const reload = query.reload;
+  const editarDiente = useCallback(
+    async (p: EditarDientePayload) => {
+      const result = await repositories.odontograma.registrarCambioDiente(p);
+      reload();
+      return result;
+    },
+    [reload],
+  );
+  return {
+    odontograma: query.data || null,
+    loading: query.loading,
+    error: query.error,
+    recargarOdontograma: reload,
+    editarDiente,
+  };
 }
 
 export function useChatbot(contexto: ContextoChat) {
   const [mensajes, setMensajes] = useState<MensajeChat[]>([
     {
-      id: 'msg-init',
-      emisor: 'ASISTENTE',
+      id: "welcome",
+      emisor: "ASISTENTE",
       texto:
-        contexto.rolActual === 'VISITANTE'
-          ? '¡Hola! Soy el Asistente Digital de Lumina Odontología. Puedo informarte sobre servicios, horarios, precios o guiarte para iniciar sesión.'
-          : contexto.rolActual === 'DENTISTA'
-          ? 'Modo Clínico Dentista activo. Puedes consultar expedientes, revisar tu agenda, reagendar citas o proponer cambios al odontograma con confirmación.'
-          : '¡Hola! Estoy sincronizado con tu Portal de Paciente. Puedo ayudarte a revisar tu historial, consultar tu odontograma, seguir un tratamiento o agendar/cancelar citas.',
-      fechaHora: 'Ahora',
+        contexto.rolActual === "VISITANTE"
+          ? "Hola. Puedo ayudarte con servicios, horarios y acceso al portal."
+          : "Puedo ayudarte a consultar tu expediente y gestionar citas. Cada cambio requiere tu confirmación.",
+      fechaHora: "Ahora",
     },
   ]);
-  const [escribiendo, setEscribiendo] = useState<boolean>(false);
-
+  const [escribiendo, setEscribiendo] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [ultimoMensaje, setUltimoMensaje] = useState("");
+  const lock = useRef(false);
   const enviarMensaje = useCallback(
-    async (textoUsuario: string) => {
-      const limpio = textoUsuario.trim();
-      if (!limpio) return;
-
-      const msgUser: MensajeChat = {
-        id: `usr-${Date.now()}`,
-        emisor: 'USUARIO',
-        texto: limpio,
-        fechaHora: new Date().toLocaleTimeString('es-MX', {
-          hour: '2-digit',
-          minute: '2-digit',
-        }),
-      };
-      setMensajes((prev) => [...prev, msgUser]);
+    async (text: string) => {
+      const message = text.trim();
+      if (!message || lock.current) return false;
+      lock.current = true;
       setEscribiendo(true);
-
+      setError(null);
+      setMensajes((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          emisor: "USUARIO",
+          texto: message,
+          fechaHora: "Ahora",
+        },
+      ]);
       try {
-        const respuesta = await repositories.chat.sendMessage(limpio, contexto);
-        const msgBot: MensajeChat = {
-          id: `bot-${Date.now()}`,
-          emisor: 'ASISTENTE',
-          texto: respuesta.texto,
-          fechaHora: new Date().toLocaleTimeString('es-MX', {
-            hour: '2-digit',
-            minute: '2-digit',
-          }),
-          acciones: respuesta.acciones,
-          componentes: respuesta.componentes,
-        };
-        setMensajes((prev) => [...prev, msgBot]);
+        const response = await repositories.chat.sendMessage(message, contexto);
+        setMensajes((prev) => [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            emisor: "ASISTENTE",
+            texto: response.texto,
+            acciones: response.acciones,
+            componentes: response.componentes,
+            fechaHora: "Ahora",
+          },
+        ]);
+        setUltimoMensaje("");
+        return true;
+      } catch (e) {
+        setError(
+          e instanceof Error ? e.message : "No se pudo enviar el mensaje.",
+        );
+        setUltimoMensaje(message);
+        return false;
       } finally {
+        lock.current = false;
         setEscribiendo(false);
       }
     },
-    [contexto]
+    [contexto],
   );
+  const marcarAccionConfirmada = useCallback((id: string, text: string) => {
+    setMensajes((prev) => [
+      ...prev.map((m) => ({
+        ...m,
+        acciones: m.acciones?.map((a) =>
+          a.id === id
+            ? {
+                ...a,
+                confirmada: true,
+                estado: "completada" as const,
+                error: undefined,
+              }
+            : a,
+        ),
+      })),
+      {
+        id: crypto.randomUUID(),
+        emisor: "ASISTENTE",
+        texto: text,
+        fechaHora: "Ahora",
+      },
+    ]);
+  }, []);
+  const marcarAccionFallida = useCallback((id: string, text: string) => {
+    setMensajes((prev) =>
+      prev.map((m) => ({
+        ...m,
+        acciones: m.acciones?.map((a) =>
+          a.id === id
+            ? {
+                ...a,
+                confirmada: false,
+                estado: "fallida" as const,
+                error: text,
+              }
+            : a,
+        ),
+      })),
+    );
+  }, []);
+  return {
+    mensajes,
+    escribiendo,
+    error,
+    ultimoMensaje,
+    enviarMensaje,
+    marcarAccionConfirmada,
+    marcarAccionFallida,
+  };
+}
 
-  const marcarAccionConfirmada = useCallback(
-    (accionId: string, textoConfirmacion: string) => {
-      setMensajes((prev) => [
-        ...prev.map((m) => ({
-          ...m,
-          acciones: m.acciones?.map((a) =>
-            a.id === accionId ? {...a, confirmada: true} : a
-          ),
-        })),
-        {
-          id: `sys-${Date.now()}`,
-          emisor: 'ASISTENTE',
-          texto: textoConfirmacion,
-          fechaHora: 'Ahora',
-        },
-      ]);
+export function useCatalogoPublico() {
+  const load = useCallback(async () => {
+    const [servicios, dentistas] = await Promise.all([
+      repositories.citas.listarServicios(),
+      repositories.citas.listarDentistas(),
+    ]);
+    return { servicios, dentistas };
+  }, []);
+  const query = useQuery("public-catalog", load);
+  return {
+    servicios: query.data?.servicios || [],
+    dentistas: query.data?.dentistas || [],
+    loading: query.loading,
+    error: query.error,
+    reload: query.reload,
+  };
+}
+export function useDisponibilidad(
+  dentistaId: string,
+  fecha: string,
+  servicioId: string,
+) {
+  const load = useCallback(
+    () =>
+      repositories.citas.obtenerHorariosDisponibles(
+        dentistaId,
+        fecha,
+        servicioId,
+      ),
+    [dentistaId, fecha, servicioId],
+  );
+  const query = useQuery(
+    `slots:${dentistaId}:${fecha}:${servicioId}`,
+    load,
+    !!dentistaId && !!fecha && !!servicioId,
+  );
+  const reload = query.reload;
+  const revalidate = useCallback(
+    async (hora: string) => {
+      const values = await load();
+      if (!hora || !values.includes(hora)) {
+        reload();
+        throw new Error(
+          "Ese horario ya no está disponible. Elige otro horario.",
+        );
+      }
     },
-    []
+    [load, reload],
   );
-
-  return {mensajes, escribiendo, enviarMensaje, marcarAccionConfirmada};
+  return { ...query, horarios: query.data || [], revalidate };
 }

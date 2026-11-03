@@ -1,87 +1,52 @@
-# Lumina Odontología — Frontend Desacoplado (Next.js App Router + TypeScript)
+# Lumina Odontología
 
-Sistema web integral para consultorio odontológico diseñado bajo una **arquitectura limpia y estrictamente desacoplada**. Funciona de inmediato con datos simulados en memoria (`mock`) y está preparado para conectarse a un backend **NestJS** (`http`) mediante una variable de entorno sin modificar ninguna pantalla ni componente.
+Frontend de consultorio dental con Next.js App Router y TypeScript estricto. Conserva dominio, contratos de repositorio, adaptadores mock/HTTP y componentes UI compartidos.
 
----
+## Ejecutar
 
-## Credenciales de Prueba (Modo Mock)
-
-En la pantalla `/login` puedes hacer clic en los botones de acceso rápido o ingresar manualmente:
-
-| Rol | Email | Contraseña | Acceso principal |
-| :--- | :--- | :--- | :--- |
-| **Paciente** | `paciente@demo.com` | `123456` | `/paciente` (Resumen, Historial e Informe de Odontograma en **solo lectura**, Tratamientos y Citas) |
-| **Dentista** | `dentista@demo.com` | `123456` | `/dentista` (Agenda diaria/semanal, 5 Pacientes, **Odontograma FDI 32 dientes editable** con historial de auditoría, Evoluciones y Tratamientos) |
-
----
-
-## Arquitectura de Capas
-
-```text
-/domain                # Entidades puras de negocio (Paciente, Dentista, Cita, Tratamiento, Odontograma, Diente, MensajeChat)
-/data
-  ├── repositories/    # Contratos/Interfaces (IAuthRepository, IPacientesRepository, ICitasRepository, IOdontogramaRepository, IChatRepository)
-  ├── mock/            # Implementación en memoria con latencia simulada y semilla realista (2 dentistas, 5 pacientes, 32 dientes FDI)
-  ├── http/            # Cliente HTTP único con interceptor JWT + Refresh y Mappers DTO -> Dominio para NestJS
-  └── factory.ts       # Selector automático según NEXT_PUBLIC_DATA_SOURCE=mock|http
-/hooks                 # Hooks de dominio (useAuth, usePacientes, useCitas, useOdontograma, useChatbot)
-/styles/tokens.css     # Variables CSS (Design Tokens: colores, tipografía, espaciados, radios, estados clínicos)
-/components/ui         # Primitivas UI propias desacopladas (Button, Card, Modal, Input, Select, Badge, Tabs)
-/features
-  ├── odontograma/     # Visor/Editor interactivo de los 32 dientes FDI (5 superficies por diente + bitácora de cambios)
-  └── chatbot/         # Asistente transversal consciente del rol con tarjetas embebidas y confirmación de acciones sensibles
-/app                   # Rutas Next.js App Router (/, /login, /paciente, /dentista) + middleware.ts de protección por rol
-/docs/API_CONTRACT.md  # Especificación completa de endpoints para el backend NestJS
+```bash
+npm install
+cp .env.example .env.local
+npm run dev
 ```
 
----
+En modo demo (`NEXT_PUBLIC_DATA_SOURCE=mock`), usa `paciente@demo.com` o `dentista@demo.com`, contraseña `123456`. Son cuentas ficticias: los cambios del repositorio mock viven en memoria y se reinician al recargar. No uses datos reales en ese modo.
 
-## Cómo ejecutar el proyecto
+## Conectar NestJS
 
-1. **Instalar dependencias**:
-   ```bash
-   npm install
-   ```
+```env
+NEXT_PUBLIC_DATA_SOURCE=http
+API_URL=https://tu-servidor.example/api/v1
+NEXT_PUBLIC_CLINIC_TIME_ZONE=America/Mexico_City
+```
 
-2. **Configurar variables de entorno** (`.env.local` o `.env`):
-   ```env
-   NEXT_PUBLIC_DATA_SOURCE="mock"
-   NEXT_PUBLIC_API_URL="http://localhost:4000/api/v1"
-   ```
+Configura la zona horaria real de la clínica también en NestJS. El valor anterior es un ejemplo y el predeterminado de la plantilla. Cambiar una variable `NEXT_PUBLIC_*` requiere reconstruir la aplicación en producción.
 
-3. **Iniciar servidor de desarrollo**:
-   ```bash
-   npm run dev
-   ```
-   Abrir `http://localhost:3000`.
+El navegador solicita `/api/backend` en el mismo origen. El proxy Next utiliza `API_URL`, transporta la cookie HttpOnly y excluye el refresh token del JSON entregado al navegador. El access token vive en memoria. Las rutas clínicas se verifican en servidor mediante `/auth/me` y el guard espera la sesión antes de montar consultas.
 
-4. **Ejecutar pruebas unitarias de lógica y repositorios**:
-   ```bash
-   npx tsx --test data/mock/repositories.test.ts
-   ```
+NestJS debe implementar el [contrato completo](docs/API_CONTRACT.md), incluidos sesión por cookie, autorización por recurso, disponibilidad atómica, auditoría del autor validado y confirmación del chat. No se proporciona un backend en este repositorio. No se acredita una integración real únicamente con la compilación o las pruebas sintéticas.
 
----
+## Verificar
 
-## Cómo cambiar de `mock` a `http` (Conexión con NestJS)
+```bash
+npm run typecheck
+npm run lint
+npm test
+npm run build
+```
 
-El cambio entre datos simulados y el backend real **no requiere tocar ningún componente React ni hook**:
+`npm test` ejecuta `node:test` con `tsx`, incluyendo lógica de dominio, mocks, DTOs, operaciones HTTP, proxy, rutas protegidas, flujo de contrato simulado y pruebas DOM de formularios/teclado. Las pruebas DOM usan jsdom; su soporte de diálogo se simula y no sustituye un navegador real.
 
-1. Asegúrate de que tu servidor NestJS implemente los endpoints descritos en [`/docs/API_CONTRACT.md`](./docs/API_CONTRACT.md).
-2. En tu archivo `.env.local`, cambia:
-   ```env
-   NEXT_PUBLIC_DATA_SOURCE="http"
-   NEXT_PUBLIC_API_URL="https://tu-api-nestjs.com/api/v1"
-   ```
-3. Reinicia la aplicación. La fábrica [`/data/factory.ts`](./data/factory.ts) inyectará automáticamente `HttpAuthRepository`, `HttpPacientesRepository`, `HttpCitasRepository`, `HttpOdontogramaRepository` y `HttpChatRepository`.
-4. Si la estructura JSON del backend cambia en el futuro (por ejemplo, si se divide en microservicios detrás de un API Gateway), solo debes ajustar los transformadores en [`/data/http/mappers.ts`](./data/http/mappers.ts).
+La compilación usa Google Fonts y necesita acceso al proveedor si las fuentes no están en caché. La revisión visual, los escenarios pendientes y la evidencia por hallazgo están en [CORRECCIONES.md](docs/CORRECCIONES.md).
 
----
+## Estructura
 
-## Cómo personalizar el Tema Visual o la Librería de UI
+- `domain/`: entidades, reglas clínicas y validaciones de entrada.
+- `data/repositories/`: interfaces; `data/mock/` y `data/http/`: implementaciones.
+- `data/auth/`: validación en servidor y sesión compartida del cliente.
+- `hooks/`: consultas con descarte de respuestas obsoletas y operaciones con bloqueo de envíos.
+- `components/ui/`: controles, formulario asíncrono, estado de consulta, diálogo y pestañas.
+- `features/`: odontograma y chatbot. Toda escritura del chat se confirma mediante `/chat`.
+- `tests/`: pruebas permanentes y fixtures sintéticos.
 
-El diseño está desacoplado de plantillas externas mediante dos puntos únicos de control:
-
-1. **Design Tokens (`/styles/tokens.css`)**:
-   Modifica las variables CSS semánticas (`--color-bg-primary`, `--color-brand-primary`, `--color-tooth-caries`, `--radius-md`, etc.) para cambiar la paleta cromática, tipografías o radios de borde en toda la aplicación.
-2. **Primitivas UI (`/components/ui/index.tsx`)**:
-   Todas las pantallas consumen exclusivamente `Button`, `Card`, `Input`, `Select`, `Badge`, `Tabs` y `Modal` desde `/components/ui`. Si deseas reemplazar la implementación interna por otra librería de componentes, basta con editar `/components/ui/index.tsx` respetando sus props públicas.
+Se retiraron el endpoint paralelo `/api/clinical-chat` y sus componentes alternativos. El frontend no consume una clave Gemini; el proveedor conversacional corresponde al backend del contrato.

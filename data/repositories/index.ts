@@ -12,7 +12,7 @@ import {
   BloqueoHorario,
   RespuestaChat,
   ContextoChat,
-} from '@/domain';
+} from "@/domain";
 
 export interface LoginPayload {
   email: string;
@@ -39,18 +39,19 @@ export interface ReagendarCitaPayload {
 export interface EditarDientePayload {
   pacienteId: string;
   numeroFDI: number;
-  superficie: SuperficieDental | 'GENERAL';
+  superficie: SuperficieDental | "GENERAL";
   nuevoEstado: EstadoDiente;
   procedimiento: string;
   nota: string;
   autorNombre: string;
+  autorId?: string;
 }
 
 export interface CrearEntradaHistorialPayload {
   pacienteId: string;
   dentistaId: string;
   dentistaNombre: string;
-  tipo: EntradaHistorialClinico['tipo'];
+  tipo: EntradaHistorialClinico["tipo"];
   diagnostico: string;
   procedimientoRealizado: string;
   notasClinicas: string;
@@ -70,35 +71,40 @@ export interface CrearTratamientoPayload {
 
 export interface IAuthRepository {
   login(payload: LoginPayload): Promise<UsuarioAutenticado>;
-  recoverPassword(email: string): Promise<{mensaje: string}>;
-  refreshToken(refreshToken: string): Promise<{accessToken: string}>;
+  getSession(): Promise<UsuarioAutenticado | null>;
+  recoverPassword(email: string): Promise<{ mensaje: string }>;
+  refreshToken(refreshToken?: string): Promise<UsuarioAutenticado>;
   logout(): Promise<void>;
 }
 
 export interface IPacientesRepository {
   listarPacientes(busqueda?: string): Promise<Paciente[]>;
   obtenerPacientePorId(pacienteId: string): Promise<Paciente | null>;
-  obtenerHistorialClinico(pacienteId: string): Promise<EntradaHistorialClinico[]>;
+  obtenerHistorialClinico(
+    pacienteId: string,
+  ): Promise<EntradaHistorialClinico[]>;
   agregarEntradaHistorial(
-    payload: CrearEntradaHistorialPayload
+    payload: CrearEntradaHistorialPayload,
   ): Promise<EntradaHistorialClinico>;
   obtenerTratamientosPorPaciente(pacienteId: string): Promise<Tratamiento[]>;
   crearTratamiento(payload: CrearTratamientoPayload): Promise<Tratamiento>;
   actualizarEstadoTratamiento(
     tratamientoId: string,
-    estado: Tratamiento['estado'],
-    sesionesCompletadas: number
+    estado: Tratamiento["estado"],
+    sesionesCompletadas: number,
   ): Promise<Tratamiento>;
 }
 
 export interface ICitasRepository {
   listarServicios(): Promise<ServicioClinico[]>;
   listarDentistas(): Promise<Dentista[]>;
+  listarBloqueosDentista(dentistaId: string): Promise<BloqueoHorario[]>;
   listarCitasPorPaciente(pacienteId: string): Promise<Cita[]>;
   listarCitasPorDentista(dentistaId: string, fecha?: string): Promise<Cita[]>;
   obtenerHorariosDisponibles(
     dentistaId: string,
-    fecha: string
+    fecha: string,
+    servicioId?: string,
   ): Promise<string[]>;
   agendarCita(payload: CrearCitaPayload): Promise<Cita>;
   cancelarCita(citaId: string, motivo: string): Promise<Cita>;
@@ -108,7 +114,7 @@ export interface ICitasRepository {
     fecha: string,
     horaInicio: string,
     horaFin: string,
-    motivo: string
+    motivo: string,
   ): Promise<BloqueoHorario>;
 }
 
@@ -120,6 +126,7 @@ export interface IOdontogramaRepository {
 export interface IChatRepository {
   sendMessage(
     mensaje: string,
-    contexto: ContextoChat
+    contexto: ContextoChat,
+    confirmarAccion?: { id: string; token: string },
   ): Promise<RespuestaChat>;
 }
