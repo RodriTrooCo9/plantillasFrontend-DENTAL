@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: lumina_dental_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres_password
+      POSTGRES_DB: lumina_dental
+      TZ: America/Mexico_City
+    ports:
+      - "5433:5432"
+    volumes:
+      - lumina_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d lumina_dental"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  lumina_pgdata:

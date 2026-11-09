@@ -1,0 +1,278 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String    @id
+  email          String    @unique
+  passwordHash   String
+  nombreCompleto String
+  rol            String    // "PACIENTE" | "DENTISTA"
+  pacienteId     String?   @unique
+  dentistaId     String?   @unique
+  avatarUrl      String?
+  createdAt      DateTime  @default(now())
+
+  paciente       Paciente? @relation(fields: [pacienteId], references: [id], onDelete: SetNull)
+  dentista       Dentista? @relation(fields: [dentistaId], references: [id], onDelete: SetNull)
+  sessions       Session[]
+}
+
+model Session {
+  id           String    @id @default(uuid())
+  userId       String
+  refreshToken String    @unique
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  createdAt    DateTime  @default(now())
+
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Servicio {
+  id               String        @id
+  codigo           String        @unique
+  nombre           String
+  categoria        String
+  descripcionCorta String
+  protocoloClinico String
+  beneficioMedible String
+  precioBaseMXN    Float
+  duracionMinutos  Int
+  garantiaAnios    Int
+
+  citas            Cita[]
+  tratamientos     Tratamiento[]
+}
+
+model Dentista {
+  id                  String            @id
+  nombreCompleto      String
+  email               String            @unique
+  cedulaProfesional   String
+  especialidad        String
+  biografiaCorta      String
+  diasAtencion        String[]
+  horariosDisponibles String[]
+
+  user                User?
+  bloqueos            BloqueoDentista[]
+  pacientesAsignados  Paciente[]
+  citas               Cita[]
+  tratamientos        Tratamiento[]
+  historialEntries    HistorialClinico[]
+}
+
+model BloqueoDentista {
+  id         String   @id
+  dentistaId String
+  fecha      String   // YYYY-MM-DD
+  horaInicio String   // HH:mm
+  horaFin    String   // HH:mm
+  motivo     String
+
+  dentista   Dentista @relation(fields: [dentistaId], references: [id], onDelete: Cascade)
+}
+
+model Paciente {
+  id                       String             @id
+  documento                String
+  codigoExpediente         String             @unique
+  nombreCompleto           String
+  email                    String             @unique
+  telefono                 String
+  fechaNacimiento          String             // YYYY-MM-DD
+  edad                     Int
+  grupoSanguineo           String
+  alergias                 String[]
+  condicionesMedicas       String[]
+  alertasClinicas          String[]
+  fechaRegistro            String             // YYYY-MM-DD
+  odontologoCabeceraId     String
+  odontologoCabeceraNombre String
+  tutorNombre              String?
+  tutorTelefono            String?
+  activo                   Boolean            @default(true)
+  deletedAt                DateTime?
+
+  odontologoCabecera       Dentista           @relation(fields: [odontologoCabeceraId], references: [id])
+  user                     User?
+  citas                    Cita[]
+  tratamientos             Tratamiento[]
+  historial                HistorialClinico[]
+  odontograma              Odontograma?
+  pagos                    Pago[]
+}
+
+model HistorialClinico {
+  id                     String   @id
+  pacienteId             String
+  fecha                  String   // YYYY-MM-DD
+  dentistaId             String
+  dentistaNombre         String
+  tipo                   String   // CONSULTA | DIAGNOSTICO | PROCEDIMIENTO | CONTROL_PERIODONTAL
+  diagnostico            String
+  procedimientoRealizado String
+  notasEvolucion         String
+  createdAt              DateTime @default(now())
+
+  paciente               Paciente @relation(fields: [pacienteId], references: [id], onDelete: Restrict)
+  dentista               Dentista @relation(fields: [dentistaId], references: [id])
+}
+
+model Tratamiento {
+  id                   String   @id
+  pacienteId           String
+  dentistaId           String
+  dentistaNombre       String
+  servicioId           String
+  nombre               String
+  estado               String   // PLANIFICADO | EN_CURSO | FINALIZADO
+  fechaInicio          String   // YYYY-MM-DD
+  progresoPorcentaje   Int
+  sesionesCompletadas  Int
+  sesionesTotales      Int
+  costoTotal           Float
+  presupuestoAprobado  Boolean  @default(false)
+  dientesInvolucrados  Int[]
+  proximaFechaSugerida String   // YYYY-MM-DD
+  notasEvolucion       String
+  createdAt            DateTime @default(now())
+
+  paciente             Paciente @relation(fields: [pacienteId], references: [id], onDelete: Restrict)
+  dentista             Dentista @relation(fields: [dentistaId], references: [id])
+  servicio             Servicio @relation(fields: [servicioId], references: [id])
+  citas                Cita[]
+  pagos                Pago[]
+}
+
+model Pago {
+  id             String      @id @default(uuid())
+  pacienteId     String
+  tratamientoId  String
+  montoMXN       Float
+  descuentoMXN   Float       @default(0)
+  metodoPago     String      // EFECTIVO | TARJETA | TRANSFERENCIA
+  idempotencyKey String?     @unique
+  fechaPago      String      // YYYY-MM-DD
+  notas          String      @default("")
+  createdAt      DateTime    @default(now())
+
+  paciente       Paciente    @relation(fields: [pacienteId], references: [id], onDelete: Restrict)
+  tratamiento    Tratamiento @relation(fields: [tratamientoId], references: [id], onDelete: Restrict)
+}
+
+model MaterialInventario {
+  id               String                 @id
+  sku              String                 @unique
+  nombre           String
+  categoria        String                 // CONSUMIBLE | ANESTESIA | ENDODONCIA | RESTAURACION | BIOSEGURIDAD
+  unidad           String                 // pieza | caja | cartucho | jeringa
+  stockActual      Int
+  stockMinimo      Int
+  costoUnitarioMXN Float
+  activo           Boolean                @default(true)
+  updatedAt        DateTime               @updatedAt
+
+  movimientos      MovimientoInventario[]
+}
+
+model MovimientoInventario {
+  id         String             @id @default(uuid())
+  materialId String
+  tipo       String             // ENTRADA | CONSUMO_CLINICO | AJUSTE
+  cantidad   Int
+  motivo     String
+  citaId     String?
+  autorId    String
+  createdAt  DateTime           @default(now())
+
+  material   MaterialInventario @relation(fields: [materialId], references: [id], onDelete: Restrict)
+}
+
+model Cita {
+  id                 String       @id
+  pacienteId         String
+  pacienteNombre     String
+  dentistaId         String
+  dentistaNombre     String
+  servicioId         String
+  servicioNombre     String
+  tratamientoId      String?
+  fecha              String       // YYYY-MM-DD
+  horaInicio         String       // HH:mm
+  estado             String       // CONFIRMADA | EN_SALA | COMPLETADA | CANCELADA | REPROGRAMADA
+  motivo             String
+  costoMXN           Float
+  estadoNotificacion String?      // solicitada | pendiente | enviada
+  createdAt          DateTime     @default(now())
+
+  paciente           Paciente     @relation(fields: [pacienteId], references: [id], onDelete: Restrict)
+  dentista           Dentista     @relation(fields: [dentistaId], references: [id])
+  servicio           Servicio     @relation(fields: [servicioId], references: [id])
+  tratamiento        Tratamiento? @relation(fields: [tratamientoId], references: [id], onDelete: SetNull)
+}
+
+model Odontograma {
+  pacienteId       String              @id
+  actualizadoEn    String              // YYYY-MM-DD
+  dientes          DienteOdontograma[]
+  historialCambios CambioOdontograma[]
+
+  paciente         Paciente            @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+}
+
+model DienteOdontograma {
+  id                  String      @id @default(uuid())
+  pacienteId          String
+  numeroFDI           Int
+  nombreAnatomico     String
+  cuadrante           Int
+  estadoGeneral       String
+  supOclusal          String
+  supVestibular       String
+  supLingual          String
+  supMesial           String
+  supDistal           String
+  ultimaActualizacion String      // YYYY-MM-DD
+  notaClinica         String
+
+  odontograma         Odontograma @relation(fields: [pacienteId], references: [pacienteId], onDelete: Cascade)
+
+  @@unique([pacienteId, numeroFDI])
+}
+
+model CambioOdontograma {
+  id             String      @id
+  pacienteId     String
+  numeroFDI      Int
+  superficie     String
+  estadoAnterior String
+  estadoNuevo    String
+  procedimiento  String
+  nota           String
+  autorNombre    String
+  autorRol       String      // "DENTISTA"
+  fechaHora      String      // ISO 8601 datetime with offset
+  createdAt      DateTime    @default(now())
+
+  odontograma    Odontograma @relation(fields: [pacienteId], references: [pacienteId], onDelete: Cascade)
+}
+
+model ChatPropuesta {
+  id            String   @id
+  token         String
+  contextKey    String
+  tipoAccion    String
+  descripcion   String
+  payloadJson   String
+  expiresAt     DateTime
+  ejecutada     Boolean  @default(false)
+  resultadoJson String?
+  createdAt     DateTime @default(now())
+}
