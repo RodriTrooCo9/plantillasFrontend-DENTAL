@@ -6,7 +6,7 @@ import { TopNavbar } from "@/components/TopNavbar";
 import { QueryState } from "@/components/ui/QueryState";
 import { Card, Button } from "@/components/ui";
 import { HeroClinicVisual } from "@/components/ClinicalVisuals";
-import { ChatbotAssistant } from "@/features/chatbot/ChatbotAssistant";
+import { DentalChatbot } from "@/components/DentalChatbot";
 import type { ServicioClinico, Dentista } from "@/types";
 import {
   Calendar,
@@ -424,8 +424,8 @@ export function PublicLandingTemplate({
         </div>
       </footer>
 
-      {/* Chatbot Flotante en Modo VISITANTE */}
-      <ChatbotAssistant contexto={{ rolActual: "VISITANTE" }} />
+      {/* Chatbot Clínico Inteligente (Vercel AI SDK + Ollama Open-Source) */}
+      <DentalChatbot />
     </div>
   );
 }

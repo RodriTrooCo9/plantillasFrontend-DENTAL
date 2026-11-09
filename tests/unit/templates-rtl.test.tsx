@@ -31,6 +31,10 @@ jest.mock("@/features/chatbot/ChatbotAssistant", () => ({
   ChatbotAssistant: () => <div data-testid="chatbot-mock">Chatbot Mock</div>,
 }));
 
+jest.mock("@/components/DentalChatbot", () => ({
+  DentalChatbot: () => <div data-testid="dental-chatbot-mock">Dental Chatbot</div>,
+}));
+
 describe("Componentes y Plantillas Frontend (React Testing Library)", () => {
   it("renderiza LoginTemplate con accesos rápidos de Admin y Usuarios Ficticios, maneja estados de loading, error y modal de recuperación", () => {
     // Arrange
