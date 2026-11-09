@@ -1,11 +1,8 @@
 import { userSchema } from "@/data/http/schemas";
-export const SESSION_COOKIE = "lumina_refresh";
+import { API_CONFIG, AUTH_CONFIG } from "@/config";
+export const SESSION_COOKIE = AUTH_CONFIG.sessionCookieName;
 export function backendUrl(path: string) {
-  const base =
-    process.env.API_URL ||
-    process.env.NEXT_PUBLIC_API_URL ||
-    "http://localhost:4000/api/v1";
-  return `${base.replace(/\/$/, "")}${path}`;
+  return `${API_CONFIG.serverBaseUrl}${path}`;
 }
 export function sessionCookie(cookie: string | null): string {
   return (

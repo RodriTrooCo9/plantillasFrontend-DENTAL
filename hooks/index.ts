@@ -16,16 +16,20 @@ import {
   loginSession,
   logoutSession,
 } from "@/data/auth/session";
-import { repositories } from "@/data/factory";
 import {
+  authService,
+  patientsService,
+  appointmentsService,
+  odontogramService,
+  chatService,
+} from "@/services";
+import type {
   LoginPayload,
   CrearCitaPayload,
   ReagendarCitaPayload,
   EditarDientePayload,
   CrearEntradaHistorialPayload,
   CrearTratamientoPayload,
-} from "@/data/repositories";
-import {
   UsuarioAutenticado,
   Paciente,
   Dentista,
@@ -37,7 +41,7 @@ import {
   MensajeChat,
   ContextoChat,
   AccionEstructuradaChat,
-} from "@/domain";
+} from "@/types";
 
 export function useAuth() {
   const session = useSyncExternalStore(
@@ -52,7 +56,7 @@ export function useAuth() {
     ...session,
     login: loginSession,
     logout: logoutSession,
-    recoverPassword: repositories.auth.recoverPassword.bind(repositories.auth),
+    recoverPassword: authService.recoverPassword,
   };
 }
 
@@ -62,7 +66,7 @@ export function usePacientes(
 ) {
   const [search, setSearch] = useState("");
   const loadDirectory = useCallback(
-    () => repositories.pacientes.listarPacientes(search),
+    () => patientsService.listarPacientes(search),
     [search],
   );
   const directory = useQuery(
@@ -77,9 +81,9 @@ export function usePacientes(
   const loadPatient = useCallback(async () => {
     if (!target) throw new Error("No hay un expediente seleccionado.");
     const [pacienteActual, historial, tratamientos] = await Promise.all([
-      repositories.pacientes.obtenerPacientePorId(target),
-      repositories.pacientes.obtenerHistorialClinico(target),
-      repositories.pacientes.obtenerTratamientosPorPaciente(target),
+      patientsService.obtenerPacientePorId(target),
+      patientsService.obtenerHistorialClinico(target),
+      patientsService.obtenerTratamientosPorPaciente(target),
     ]);
     return { pacienteActual, historial, tratamientos };
   }, [target]);
@@ -98,7 +102,7 @@ export function usePacientes(
   const agregarNotaHistorial = useCallback(
     async (payload: CrearEntradaHistorialPayload) => {
       const value =
-        await repositories.pacientes.agregarEntradaHistorial(payload);
+        await patientsService.agregarEntradaHistorial(payload);
       reload();
       return value;
     },
@@ -106,7 +110,7 @@ export function usePacientes(
   );
   const crearTratamiento = useCallback(
     async (payload: CrearTratamientoPayload) => {
-      const value = await repositories.pacientes.crearTratamiento(payload);
+      const value = await patientsService.crearTratamiento(payload);
       reload();
       return value;
     },
@@ -114,7 +118,7 @@ export function usePacientes(
   );
   const actualizarTratamiento = useCallback(
     async (id: string, estado: Tratamiento["estado"], sesiones: number) => {
-      const value = await repositories.pacientes.actualizarEstadoTratamiento(
+      const value = await patientsService.actualizarEstadoTratamiento(
         id,
         estado,
         sesiones,
@@ -142,15 +146,15 @@ export function useCitas(pacienteId?: string, dentistaId?: string) {
   const [mutationError, setMutationError] = useState<string | null>(null);
   const load = useCallback(async () => {
     const [servicios, dentistas, citas, bloqueos] = await Promise.all([
-      repositories.citas.listarServicios(),
-      repositories.citas.listarDentistas(),
+      appointmentsService.listarServicios(),
+      appointmentsService.listarDentistas(),
       dentistaId
-        ? repositories.citas.listarCitasPorDentista(dentistaId)
+        ? appointmentsService.listarCitasPorDentista(dentistaId)
         : pacienteId
-          ? repositories.citas.listarCitasPorPaciente(pacienteId)
+          ? appointmentsService.listarCitasPorPaciente(pacienteId)
           : Promise.resolve([] as Cita[]),
       dentistaId
-        ? repositories.citas.listarBloqueosDentista(dentistaId)
+        ? appointmentsService.listarBloqueosDentista(dentistaId)
         : Promise.resolve([]),
     ]);
     return {
@@ -182,23 +186,23 @@ export function useCitas(pacienteId?: string, dentistaId?: string) {
     [reload],
   );
   const agendarCita = useCallback(
-    (p: CrearCitaPayload) => mutate(() => repositories.citas.agendarCita(p)),
+    (p: CrearCitaPayload) => mutate(() => appointmentsService.agendarCita(p)),
     [mutate],
   );
   const cancelarCita = useCallback(
     (id: string, motivo: string) =>
-      mutate(() => repositories.citas.cancelarCita(id, motivo)),
+      mutate(() => appointmentsService.cancelarCita(id, motivo)),
     [mutate],
   );
   const reagendarCita = useCallback(
     (p: ReagendarCitaPayload) =>
-      mutate(() => repositories.citas.reagendarCita(p)),
+      mutate(() => appointmentsService.reagendarCita(p)),
     [mutate],
   );
   const bloquearHorario = useCallback(
     (id: string, fecha: string, inicio: string, fin: string, motivo: string) =>
       mutate(() =>
-        repositories.citas.bloquearHorarioDentista(
+        appointmentsService.bloquearHorarioDentista(
           id,
           fecha,
           inicio,
@@ -228,14 +232,14 @@ export function useCitas(pacienteId?: string, dentistaId?: string) {
 
 export function useOdontograma(pacienteId: string) {
   const load = useCallback(
-    () => repositories.odontograma.obtenerOdontograma(pacienteId),
+    () => odontogramService.obtenerOdontograma(pacienteId),
     [pacienteId],
   );
   const query = useQuery(`odontogram:${pacienteId}`, load, !!pacienteId);
   const reload = query.reload;
   const editarDiente = useCallback(
     async (p: EditarDientePayload) => {
-      const result = await repositories.odontograma.registrarCambioDiente(p);
+      const result = await odontogramService.registrarCambioDiente(p);
       reload();
       return result;
     },
@@ -283,7 +287,7 @@ export function useChatbot(contexto: ContextoChat) {
         },
       ]);
       try {
-        const response = await repositories.chat.sendMessage(message, contexto);
+        const response = await chatService.sendMessage(message, contexto);
         setMensajes((prev) => [
           ...prev,
           {
@@ -364,8 +368,8 @@ export function useChatbot(contexto: ContextoChat) {
 export function useCatalogoPublico() {
   const load = useCallback(async () => {
     const [servicios, dentistas] = await Promise.all([
-      repositories.citas.listarServicios(),
-      repositories.citas.listarDentistas(),
+      appointmentsService.listarServicios(),
+      appointmentsService.listarDentistas(),
     ]);
     return { servicios, dentistas };
   }, []);
@@ -385,7 +389,7 @@ export function useDisponibilidad(
 ) {
   const load = useCallback(
     () =>
-      repositories.citas.obtenerHorariosDisponibles(
+      appointmentsService.obtenerHorariosDisponibles(
         dentistaId,
         fecha,
         servicioId,

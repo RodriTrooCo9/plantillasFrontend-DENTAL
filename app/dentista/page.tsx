@@ -180,7 +180,18 @@ function DentistPortal({ user }: { user: UsuarioAutenticado }) {
 
   const handleAgregarHistorial = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!histDiag.trim() || !histProc.trim()) return;
+    const errs: Record<string, string> = {};
+    if (histDiag.trim().length < 3) {
+      errs.diagnostico =
+        "El diagnóstico clínico requiere al menos 3 caracteres.";
+    }
+    if (histProc.trim().length < 3) {
+      errs.procedimientoRealizado =
+        "El procedimiento realizado requiere al menos 3 caracteres.";
+    }
+    setFieldErrors(errs);
+    if (Object.keys(errs).length > 0) return;
+
     await agregarNotaHistorial({
       pacienteId: pacienteSeleccionadoId,
       dentistaId: dentistaActivoId,
@@ -713,6 +724,7 @@ function DentistPortal({ user }: { user: UsuarioAutenticado }) {
                     </Select>
                     <Input
                       id="doc-hist-diag"
+                      error={fieldErrors.diagnostico}
                       required
                       label="Diagnóstico clínico"
                       value={histDiag}
@@ -721,6 +733,7 @@ function DentistPortal({ user }: { user: UsuarioAutenticado }) {
                     />
                     <Input
                       id="doc-hist-proc"
+                      error={fieldErrors.procedimientoRealizado}
                       required
                       label="Procedimiento realizado"
                       value={histProc}
