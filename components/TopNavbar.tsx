@@ -2,7 +2,7 @@
 import React, { useId, useState, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Menu, X } from "lucide-react";
+import { Menu, X, Sun, Moon } from "lucide-react";
 import { useAuth } from "@/hooks";
 import { useOperation } from "@/hooks/use-operation";
 import { roleDestination } from "@/domain/auth-routing";
@@ -10,9 +10,22 @@ export function TopNavbar() {
   const { user, logout } = useAuth();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [isDark, setIsDark] = useState(false);
   const id = useId();
   const button = useRef<HTMLButtonElement>(null);
   const operation = useOperation();
+
+  const toggleTheme = () => {
+    const next = !isDark;
+    setIsDark(next);
+    if (typeof document !== "undefined") {
+      if (next) {
+        document.documentElement.classList.add("dark");
+      } else {
+        document.documentElement.classList.remove("dark");
+      }
+    }
+  };
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur border-b border-stone-200">
       <div className="max-w-[1280px] mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3 min-w-0">
@@ -49,6 +62,14 @@ export function TopNavbar() {
               Iniciar sesión
             </Link>
           )}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            aria-label={isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
+            className="min-h-11 min-w-11 inline-flex items-center justify-center text-slate-600 hover:text-slate-900 rounded-lg cursor-pointer"
+          >
+            {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          </button>
           <button
             type="button"
             ref={button}

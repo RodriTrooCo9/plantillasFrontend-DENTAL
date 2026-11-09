@@ -141,22 +141,71 @@ export function Select({
   );
 }
 
+export function Skeleton({
+  className = "",
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div
+      aria-hidden="true"
+      className={`animate-pulse bg-stone-200 dark:bg-slate-800 rounded-md ${className}`}
+      {...props}
+    />
+  );
+}
+
 export function Badge({
   children,
   tone = "neutral",
+  variant = "pill",
+  className = "",
 }: {
   children: React.ReactNode;
-  tone?: "neutral" | "teal" | "amber" | "red";
+  tone?: "neutral" | "teal" | "amber" | "red" | "success" | "danger" | "warning" | "info";
+  variant?: "inline" | "pill";
+  className?: string;
 }) {
-  // Siguiendo Zero-Pill Discipline: texto limpio sin cápsulas redondeadas
   const toneClass = {
-    neutral: "text-[var(--color-text-muted)]",
-    teal: "text-[var(--color-primary)] font-semibold",
-    amber: "text-amber-700 font-semibold",
-    red: "text-red-700 font-semibold",
+    neutral:
+      variant === "pill"
+        ? "bg-stone-100 text-stone-700 dark:bg-slate-800 dark:text-slate-300 border border-stone-300 dark:border-slate-700"
+        : "text-[var(--color-text-muted)]",
+    teal:
+      variant === "pill"
+        ? "bg-teal-50 text-teal-800 dark:bg-teal-950/60 dark:text-teal-300 border border-teal-200 dark:border-teal-800"
+        : "text-[var(--color-primary)] font-semibold",
+    amber:
+      variant === "pill"
+        ? "bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800"
+        : "text-amber-700 font-semibold",
+    warning:
+      variant === "pill"
+        ? "bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800"
+        : "text-amber-700 font-semibold",
+    red:
+      variant === "pill"
+        ? "bg-red-50 text-red-700 dark:bg-red-950/60 dark:text-red-300 border border-red-200 dark:border-red-800 font-bold"
+        : "text-red-700 font-semibold",
+    danger:
+      variant === "pill"
+        ? "bg-red-50 text-red-700 dark:bg-red-950/60 dark:text-red-300 border border-red-200 dark:border-red-800 font-bold"
+        : "text-red-700 font-semibold",
+    success:
+      variant === "pill"
+        ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
+        : "text-emerald-700 font-semibold",
+    info:
+      variant === "pill"
+        ? "bg-sky-50 text-sky-800 dark:bg-sky-950/60 dark:text-sky-300 border border-sky-200 dark:border-sky-800"
+        : "text-sky-700 font-semibold",
   }[tone];
 
-  return <span className={`text-xs ${toneClass}`}>{children}</span>;
+  const pillClass =
+    variant === "pill"
+      ? "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+      : "text-xs";
+
+  return <span className={`${pillClass} ${toneClass} ${className}`}>{children}</span>;
 }
 
 export function Tabs<T extends string>({

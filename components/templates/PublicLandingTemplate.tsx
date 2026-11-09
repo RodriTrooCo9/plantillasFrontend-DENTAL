@@ -7,6 +7,7 @@ import { QueryState } from "@/components/ui/QueryState";
 import { Card, Button } from "@/components/ui";
 import { HeroClinicVisual } from "@/components/ClinicalVisuals";
 import { DentalChatbot } from "@/components/DentalChatbot";
+import { formatCurrencyBs } from "@/lib/formatters";
 import type { ServicioClinico, Dentista } from "@/types";
 import {
   Calendar,
@@ -212,7 +213,7 @@ export function PublicLandingTemplate({
                         Arancel orientativo
                       </span>
                       <span className="text-lg font-bold font-mono tabular-nums text-slate-900">
-                        ${srv.precioBaseMXN.toLocaleString("es-MX")} MXN
+                        {formatCurrencyBs(srv.precioBaseMXN)}
                       </span>
                     </div>
                     <Button size="sm" onClick={() => onBookService(srv.id)}>

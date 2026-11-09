@@ -27,6 +27,11 @@ import {
 } from "@/components/ui";
 import { Odontograma32View } from "@/features/odontograma/Odontograma32View";
 import { ChatbotAssistant } from "@/features/chatbot/ChatbotAssistant";
+import { StickyClinicalBanner } from "@/components/StickyClinicalBanner";
+import { CommandPalette } from "@/components/CommandPalette";
+import { WaitingRoomPanel } from "@/features/agenda/WaitingRoomPanel";
+import { PaymentsView } from "@/features/pagos/PaymentsView";
+import { formatCurrencyBs } from "@/lib/formatters";
 import {
   Calendar,
   Users,
@@ -39,7 +44,12 @@ import {
 } from "lucide-react";
 
 type TabDentista =
-  "agenda" | "pacientes" | "odontograma" | "historial" | "tratamientos";
+  | "agenda"
+  | "pacientes"
+  | "odontograma"
+  | "historial"
+  | "tratamientos"
+  | "pagos";
 
 export default function PortalDentistaPage() {
   return (
@@ -56,6 +66,7 @@ function DentistPortal({ user }: { user: UsuarioAutenticado }) {
   const anyOperationPending = useAnyOperationPending();
   const { logout } = useAuth();
   const [activeTab, setActiveTab] = useState<TabDentista>("agenda");
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [vistaAgenda, setVistaAgenda] = useState<"lista" | "calendario">(
     "lista",
   );
@@ -246,6 +257,14 @@ function DentistPortal({ user }: { user: UsuarioAutenticado }) {
       {/* Top Bar */}
       <TopNavbar />
 
+      {/* Banner Clínico de Seguridad Permanente */}
+      <StickyClinicalBanner
+        paciente={pacienteActual || null}
+        saldoPendienteBs={450}
+        onCobrarClick={() => setActiveTab("pagos")}
+        onVerOdontogramaClick={() => setActiveTab("odontograma")}
+      />
+
       <main className="flex-1 max-w-[1280px] w-full mx-auto px-6 py-8 space-y-6">
         <QueryState
           loading={patientLoading || appointmentsLoading || odontogramLoading}
@@ -294,6 +313,16 @@ function DentistPortal({ user }: { user: UsuarioAutenticado }) {
                   ))}
                 </Select>
               </div>
+
+              <button
+                type="button"
+                onClick={() => setCommandPaletteOpen(true)}
+                className="min-h-11 flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-lg bg-stone-100 hover:bg-stone-200 text-slate-700 border border-stone-300 transition-colors"
+                title="Búsqueda rápida de pacientes (Ctrl+K)"
+              >
+                <Search className="w-4 h-4 text-teal-700" />
+                <span>Buscar (Ctrl+K)</span>
+              </button>
             </div>
           </Card>
 
@@ -335,12 +364,23 @@ function DentistPortal({ user }: { user: UsuarioAutenticado }) {
               },
               { id: "historial", label: "4. Evolución e Historial Clínico" },
               { id: "tratamientos", label: "5. Gestión de Tratamientos" },
+              { id: "pagos", label: "6. Pagos y Caja (Bs)" },
             ]}
           />
           <TabPanel activeTab={activeTab}>
-            {/* MÓDULO 1: AGENDA DEL DÍA/SEMANA + REAGENDAR + BLOQUEO DE HORARIOS */}
+            {/* MÓDULO 1: AGENDA DEL DÍA/SEMANA + SALA DE ESPERA + BLOQUEO */}
             {activeTab === "agenda" && (
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              <div className="space-y-6">
+                <WaitingRoomPanel
+                  citasHoy={citas.filter((c) => c.fecha === today())}
+                  pacientes={pacientes}
+                  onLlamarAlSillon={(pacId) => {
+                    setPacienteSeleccionadoId(pacId);
+                    setActiveTab("odontograma");
+                  }}
+                />
+
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                 <Card className="lg:col-span-8 p-6">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-stone-200">
                     <div>
@@ -580,6 +620,7 @@ function DentistPortal({ user }: { user: UsuarioAutenticado }) {
                     )}
                 </Card>
               </div>
+            </div>
             )}
 
             {/* MÓDULO 2: BUSCADOR Y FICHA COMPLETA DE LOS 5 PACIENTES */}
@@ -837,7 +878,7 @@ function DentistPortal({ user }: { user: UsuarioAutenticado }) {
                         type="number"
                         min={0}
                         required
-                        label="Costo total MXN"
+                        label="Costo total (Bs)"
                         value={trtCosto}
                         onChange={(e) => setTrtCosto(Number(e.target.value))}
                       />
@@ -926,6 +967,18 @@ function DentistPortal({ user }: { user: UsuarioAutenticado }) {
                 </Card>
               </div>
             )}
+
+            {/* MÓDULO 6: PAGOS, COBRANZA Y CAJA EN BOLIVIANOS (Bs) */}
+            {activeTab === "pagos" && pacienteActual && (
+              <PaymentsView
+                paciente={pacienteActual}
+                tratamientos={tratamientos}
+                dentistaNombre={user.nombreCompleto}
+                onTratamientoActualizado={() => {
+                  buscarPacientes();
+                }}
+              />
+            )}
           </TabPanel>
         </QueryState>
       </main>
@@ -950,6 +1003,29 @@ function DentistPortal({ user }: { user: UsuarioAutenticado }) {
           />
         )}
       </Modal>
+
+      {/* Paleta de Comandos Global (Ctrl+K) */}
+      <CommandPalette
+        isOpen={commandPaletteOpen}
+        onClose={() => setCommandPaletteOpen(false)}
+        pacientes={pacientes}
+        onSelectPaciente={(id) => {
+          setPacienteSeleccionadoId(id);
+          setActiveTab("odontograma");
+        }}
+        onNavigateTab={(tab) => {
+          if (
+            tab === "agenda" ||
+            tab === "pacientes" ||
+            tab === "odontograma" ||
+            tab === "historial" ||
+            tab === "tratamientos" ||
+            tab === "pagos"
+          ) {
+            setActiveTab(tab);
+          }
+        }}
+      />
 
       {/* Chatbot Transversal en Modo DENTISTA */}
       <ChatbotAssistant

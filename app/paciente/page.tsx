@@ -32,6 +32,8 @@ import {
 } from "@/components/ui";
 import { Odontograma32View } from "@/features/odontograma/Odontograma32View";
 import { ChatbotAssistant } from "@/features/chatbot/ChatbotAssistant";
+import { PatientBottomBar, type PatientTab } from "@/components/PatientBottomBar";
+import { formatCurrencyBs } from "@/lib/formatters";
 import {
   Calendar,
   Clock,
@@ -445,7 +447,7 @@ function PatientPortal({ user }: { user: UsuarioAutenticado }) {
                           Estado: {trt.estado} · Inicio: {trt.fechaInicio}
                         </span>
                         <span className="font-mono font-bold text-slate-900">
-                          ${trt.costoTotalMXN.toLocaleString("es-MX")} MXN
+                          {formatCurrencyBs(trt.costoTotalMXN)}
                         </span>
                       </div>
                       <h3 className="mt-2 text-base font-semibold text-slate-900">
@@ -527,7 +529,7 @@ function PatientPortal({ user }: { user: UsuarioAutenticado }) {
                     >
                       {servicios.map((s) => (
                         <option key={s.id} value={s.id}>
-                          {s.nombre} (${s.precioBaseMXN} MXN ·{" "}
+                          {s.nombre} ({formatCurrencyBs(s.precioBaseMXN)} ·{" "}
                           {s.duracionMinutos} min)
                         </option>
                       ))}
@@ -793,6 +795,29 @@ function PatientPortal({ user }: { user: UsuarioAutenticado }) {
           buscarPacientes();
         }}
         onOpenOdontograma={() => setActiveTab("odontograma")}
+      />
+
+      {/* Barra de Navegación Inferior para Dispositivos Móviles (Pacientes) */}
+      <PatientBottomBar
+        activeTab={
+          activeTab === "resumen"
+            ? "inicio"
+            : activeTab === "citas"
+              ? "citas"
+              : activeTab === "odontograma"
+                ? "odontograma"
+                : activeTab === "tratamientos"
+                  ? "tratamientos"
+                  : "perfil"
+        }
+        onSelectTab={(tab) => {
+          if (tab === "inicio") setActiveTab("resumen");
+          else if (tab === "citas") setActiveTab("citas");
+          else if (tab === "odontograma") setActiveTab("odontograma");
+          else if (tab === "tratamientos") setActiveTab("tratamientos");
+          else setActiveTab("resumen");
+        }}
+        proximaCitaCount={citas.length}
       />
     </div>
   );

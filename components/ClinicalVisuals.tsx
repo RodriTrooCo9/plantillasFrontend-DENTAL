@@ -137,7 +137,7 @@ export function HeroClinicVisual({
               01. Ortodoncia 3D
             </p>
             <p className="text-[11px] text-slate-500 font-mono tabular-nums mt-0.5 whitespace-nowrap">
-              $42,000 MXN · 60 min
+              Bs 42.000,00 · 60 min
             </p>
           </button>
           <button
@@ -149,7 +149,7 @@ export function HeroClinicVisual({
               02. Implante Zirconio
             </p>
             <p className="text-[11px] text-slate-500 font-mono tabular-nums mt-0.5 whitespace-nowrap">
-              $24,500 MXN · 90 min
+              Bs 24.500,00 · 90 min
             </p>
           </button>
           <button
@@ -161,7 +161,7 @@ export function HeroClinicVisual({
               03. Lentes Cerámicos
             </p>
             <p className="text-[11px] text-slate-500 font-mono tabular-nums mt-0.5 whitespace-nowrap">
-              $8,800 MXN · 75 min
+              Bs 8.800,00 · 75 min
             </p>
           </button>
         </div>

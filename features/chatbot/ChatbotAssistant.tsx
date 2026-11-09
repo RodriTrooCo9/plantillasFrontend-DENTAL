@@ -14,6 +14,7 @@ import {
 } from "@/domain";
 import { useChatbot } from "@/hooks";
 import { repositories } from "@/data/factory";
+import { formatCurrencyBs } from "@/lib/formatters";
 import {
   CrearCitaPayload,
   ReagendarCitaPayload,
@@ -342,7 +343,7 @@ function ChatbotSession({
                                 {s.nombre}
                               </span>
                               <span className="font-mono font-semibold text-teal-800">
-                                ${s.precioBaseMXN} MXN
+                                {formatCurrencyBs(s.precioBaseMXN)}
                               </span>
                             </div>
                           ))}
