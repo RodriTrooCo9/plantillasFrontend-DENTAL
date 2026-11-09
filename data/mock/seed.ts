@@ -94,6 +94,18 @@ export const SERVICIOS_SEMILLA: ServicioClinico[] = [
 
 export const DENTISTAS_SEMILLA: Dentista[] = [
   {
+    id: 'den-admin',
+    nombreCompleto: 'Dr. Admin Principal',
+    email: 'admin@demo.com',
+    cedulaProfesional: 'CED-9900001',
+    especialidad: 'Dirección Clínica, Rehabilitación Integral e Implantología',
+    biografiaCorta:
+      'Director clínico y especialista jefe del consultorio con acceso completo a expedientes, agenda y auditoría odontológica.',
+    diasAtencion: ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'],
+    horariosDisponibles: ['09:00', '10:30', '12:00', '13:30', '16:00', '17:30'],
+    bloqueos: [],
+  },
+  {
     id: 'den-valeria',
     nombreCompleto: 'Dra. Valeria Mendoza',
     email: 'dentista@demo.com',
@@ -129,6 +141,34 @@ export const DENTISTAS_SEMILLA: Dentista[] = [
 ];
 
 export const PACIENTES_SEMILLA: Paciente[] = [
+  {
+    id: 'pac-prueba1',
+    codigoExpediente: 'EXP-2026-9001',
+    nombreCompleto: 'Usuario Prueba 1',
+    email: 'prueba1@demo.com',
+    telefono: '+52 55 9001 1111',
+    fechaNacimiento: '1993-05-10',
+    edad: 33,
+    tipoSangre: 'O+',
+    alergias: ['Ninguna conocida'],
+    alertasMedicas: 'Paciente de verificación funcional #1. Revisión general y profilaxis ultrasónica.',
+    dentistaAsignadoId: 'den-admin',
+    dentistaAsignadoNombre: 'Dr. Admin Principal',
+  },
+  {
+    id: 'pac-prueba2',
+    codigoExpediente: 'EXP-2026-9002',
+    nombreCompleto: 'Usuario Prueba 2',
+    email: 'prueba2@demo.com',
+    telefono: '+52 55 9002 2222',
+    fechaNacimiento: '1996-08-22',
+    edad: 30,
+    tipoSangre: 'A+',
+    alergias: ['Ibuprofeno (usar paracetamol)'],
+    alertasMedicas: 'Paciente de verificación funcional #2. Seguimiento de rehabilitación en sector posterior.',
+    dentistaAsignadoId: 'den-admin',
+    dentistaAsignadoNombre: 'Dr. Admin Principal',
+  },
   {
     id: 'pac-1',
     codigoExpediente: 'EXP-2026-0842',

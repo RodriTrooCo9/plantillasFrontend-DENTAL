@@ -260,9 +260,29 @@ export class MockCitasRepository implements ICitasRepository {
     hora: string,
     duration: number,
     ignore?: string,
+    pacienteId?: string,
   ) {
     const dentist = dbDentistas.find((d) => d.id === dentistaId);
     if (!dentist) throw new ClinicalError(404, "Especialista inexistente.");
+    const mmdd = fecha.slice(5, 10);
+    if (["01-01", "05-01", "09-16", "12-25"].includes(mmdd)) return false;
+    const diasSemana = [
+      "Domingo",
+      "Lunes",
+      "Martes",
+      "Miércoles",
+      "Jueves",
+      "Viernes",
+      "Sábado",
+    ];
+    const diaNombre =
+      diasSemana[new Date(`${fecha}T12:00:00Z`).getUTCDay()] || "";
+    if (
+      Array.isArray(dentist.diasAtencion) &&
+      dentist.diasAtencion.length > 0 &&
+      !dentist.diasAtencion.includes(diaNombre)
+    )
+      return false;
     const start = minutes(hora),
       end = start + duration;
     if (
@@ -276,6 +296,25 @@ export class MockCitasRepository implements ICitasRepository {
         (b) =>
           b.fecha === fecha &&
           overlaps(start, end, minutes(b.horaInicio), minutes(b.horaFin)),
+      )
+    )
+      return false;
+    if (
+      pacienteId &&
+      dbCitas.some(
+        (c) =>
+          c.id !== ignore &&
+          c.pacienteId === pacienteId &&
+          c.fecha === fecha &&
+          c.estado !== "CANCELADA" &&
+          overlaps(
+            start,
+            end,
+            minutes(c.hora),
+            minutes(c.hora) +
+              (SERVICIOS_SEMILLA.find((s) => s.id === c.servicioId)
+                ?.duracionMinutos || 60),
+          ),
       )
     )
       return false;
@@ -355,6 +394,8 @@ export class MockCitasRepository implements ICitasRepository {
         payload.fecha,
         payload.hora,
         servicio.duracionMinutos,
+        undefined,
+        paciente.id,
       )
     )
       throw new ClinicalError(409, "El horario ya no está disponible.");
@@ -406,6 +447,29 @@ export class MockCitasRepository implements ICitasRepository {
     const target = dbCitas.find((c) => c.id === payload.citaId);
     if (!target) throw new Error("Cita no encontrada para reagendar.");
 
+    const sessionEmail =
+      typeof window !== "undefined"
+        ? window.sessionStorage.getItem("lumina_demo_email")?.toLowerCase()
+        : null;
+    const isPatientSession =
+      !!sessionEmail &&
+      !dbDentistas.some((d) => d.email.toLowerCase() === sessionEmail);
+
+    if (isPatientSession) {
+      const regla = verificarReglaCancelacion24h(
+        target.fecha,
+        target.hora,
+        this.now(),
+      );
+      if (!regla.permitido) {
+        throw new ClinicalError(
+          409,
+          regla.mensaje ||
+            "Las reprogramaciones requieren al menos 24 horas de anticipación.",
+        );
+      }
+    }
+
     const duration =
       SERVICIOS_SEMILLA.find((s) => s.id === target.servicioId)
         ?.duracionMinutos || 60;
@@ -416,6 +480,7 @@ export class MockCitasRepository implements ICitasRepository {
         payload.nuevaHora,
         duration,
         target.id,
+        target.pacienteId,
       )
     )
       throw new ClinicalError(409, "El nuevo horario ya no está disponible.");
